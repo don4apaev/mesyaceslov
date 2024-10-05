@@ -49,6 +49,12 @@ mesyacy = {
     12: "декабря",
 }
 
+dni = {
+    1 : 'Выходной',
+    2 : 'Сокращённый рабочий',
+    3 : 'Рабочий',
+}
+
 def get_fasting(day_date: date, cur_year: int) -> int:
     # Получить Пасху
     f_easter = easter.easter(cur_year, easter.EASTER_ORTHODOX)
