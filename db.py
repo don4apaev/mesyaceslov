@@ -59,6 +59,24 @@ class DB_handler:
             raise DateDBError
         return res[0]
 
+    def get_saints(self, day_date: date) -> list:
+        con = sqlite3.connect(self.db_name)
+        cur = con.cursor()
+        sql_req = 'SELECT name, sign FROM saints WHERE month=? AND day=?;'
+        cur.execute(sql_req, (day_date.month, day_date.day))
+        res = cur.fetchall()
+        return res
+
+    def get_saint(self, saint_id: int) -> tuple:
+        con = sqlite3.connect(self.db_name)
+        cur = con.cursor()
+        sql_req = 'SELECT name, sign FROM saints WHERE id=?;'
+        cur.execute(sql_req, (saint_id,))
+        res = cur.fetchall()
+        if len(res) != 1:
+            raise DateDBError
+        return res[0]
+
     def add_user(self, user_id):
         con = sqlite3.connect(self.db_name)
         cur = con.cursor()
@@ -67,9 +85,9 @@ class DB_handler:
         res = cur.fetchall()
         if len(res) != 0:
             return
-        sql_req = 'INSERT INTO users (id, admin, timezone, morning, evening) '\
-                    'VALUES (?, ?, ?, ?, ?);'
-        cur.execute(sql_req, (user_id, False, 3, None, None))
+        sql_req = 'INSERT INTO users (id, admin, mailing, timezone, morning, evening) '\
+                    'VALUES (?, ?, ?, ?, ?, ?);'
+        cur.execute(sql_req, (user_id, False, None, 3, None, None))
         con.commit()
 
     def get_user_info(self, user_id):

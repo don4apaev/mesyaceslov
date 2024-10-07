@@ -19,42 +19,6 @@ VK_TOKEN =  'vk1.a._U5pXt2Glm1E34C1Fl3aEAO4PapSS8NntrO6iP1yjHerSkcBfUGaDHQSGxSJg
             'JDw8v7rB_R756G4mGH1kidK1xbkP20wi4M8na4RrhYGSedz_iEbBHMFvtZHRtCQ_oThCri8h_'\
             'wa-nCuZQdwWO2L8S02SZc48kG6kKF9vjn5gLNbL5nUQWtQEeh_g7c2-vsvpX4Xw3dV6KguMA'
 
-cyril_numbers = {
-    1: 'а',
-    2: 'в',
-    3: 'г',
-    4: 'д',
-    5: 'е',
-    6: 'ѕ',
-    7: 'з',
-    8: 'ѳ',
-    9: 'и',
-    10: 'і',
-    20: 'к',
-    30: 'л',
-}
-
-mesyacy = {
-    1: "января",
-    2: "февраля",
-    3: "марта",
-    4: "апреля",
-    5: "мая",
-    6: "июня",
-    7: "июля",
-    8: "августа",
-    9: "сентября",
-    10: "октября",
-    11: "ноября",
-    12: "декабря",
-}
-
-dni = {
-    1 : 'Выходной',
-    2 : 'Сокращённый рабочий',
-    3 : 'Рабочий',
-}
-
 def get_fasting(day_date: date, cur_year: int) -> int:
     # Получить Пасху
     f_easter = easter.easter(cur_year, easter.EASTER_ORTHODOX)
