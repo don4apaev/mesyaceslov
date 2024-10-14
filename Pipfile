@@ -1,0 +1,8 @@
+[requires]
+python_version = "*"
+
+[packages]
+#dateutil = "*"
+vk_api = "*"
+pyTelegramBotAPI = "*"
+aiohttp="*"
