@@ -39,22 +39,20 @@ Dni = {
 }
 
 Posty = {
-    1:  'пост в воспоминание предательства Иудой Христа',
-    10: 'пост в память крестных страданий и смерти Спасителя',
-    2:  'Рожденственский пост',
-    3:  'Великий пост',
-    4:  'Апостольский пост',
-    5:  'Успенский пост',
-    6:  'Крещенский сочельник',
-    7:  'пост в память Усекновения главы Иоанна Предтечи',
-    8:  'пост в память Воздвижения Креста Господня',
-    -1: 'Светлое Христово Воскресение, Пасха',
-    -2: 'Рождество Христово',
-    -3: 'Святки',
-    -4: 'Седьмица мытаря и фарисея',
-    -5: 'Сырная седьмица',
-    -6: 'Светлая седьмица',
-    -7: 'Троицкая седьмица',
+    1:  'Мясопуст, воздержание от мяса',
+    2:  'Постный день, разрешена рыба',
+    3:  'Постный день, разрешена горячая пища с маслом',
+    4:  'Постный день, разрешена горячая пища без масла',
+    5:  'Постный день, сухоядение',
+    6:  'Постный день, рекомендуется воздержание от пищи',
+}
+
+Znaki = {
+    1 : '\N{circled cross pommee}',
+    2 : '\N{cross pommee with half-circle below}',
+    3 : '\N{cross pommee}',
+    4 : '\N{notched left semicircle with three dots}',
+    5 : '\N{notched right semicircle with three dots}',
 }
 
 class MS_producer:
@@ -90,42 +88,72 @@ class MS_producer:
         # Формируем дату
         date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        # Получаем данные о дне из БД
+        name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
+        # Заполняем дату
         slovo += f'{date.day}[{self._arab_to_cyril(date.day)}] {Mesyacy[date.month]} '\
         f'({old_date.day}[{self._arab_to_cyril(old_date.day)}] {Mesyacy[old_date.month]} cт.ст.) '\
-        f'{self._creation_year(date)} г. от сотворения мира'
-        # Получаем данные из БД
-        name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
-        # Заполняем слово
-        if fasting := Posty.get(fasting):
-            slovo += f', {fasting}.'
+        f'{self._creation_year(date)} г. от сотворения мира.'
+        # Заполняем пост
+        if fasting := Posty.get(fasting) :
+            slovo += f' {fasting}.\n'
         else:
-            slovo += '.'
-        slovo += '\n'
-        # Поминаемых святых и праздники
-        # if holy:
-        #      "Сегодня празднуется "
-        # tipicon 1F540-1F544
-        # Притчу или житие
-        with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
-            for line in sign.readlines():
-                slovo += line
+            slovo += '\n'
+        # Заполняем Великие праздники
+        if holy:
+            name, sign = get_saint(holy)
+            slovo += f'Сегодня Великий праздник - {name}!\n'
+        # Получаем поминаемых святых и иконы
+        holy_list = self._db_handler.get_saints(date)
+        saint_slovo = 'Сегодня день памяти: '
+        saint_count = 0
+        icon_slovo = 'Сегодня прославляются иконы Божей Матери: '
+        icon_count = 0
+        # Отделяем дни поминования от икон
+        for holy in holy_list:
+            print(holy)
+            s_id, s_name, s_sign = holy
+            if s_sign == 0:
+                icon_slovo += s_name + ', '
+                icon_count += 1
+            elif s_sign != 1:
+                # tipicon 1F540-1F544
+                if s_sign:
+                    saint_slovo += Znaki[s_sign]
+                saint_slovo += s_name + ', '
+                saint_count += 1
+        if saint_count:
+            saint_slovo = saint_slovo[:-2]
+            slovo += saint_slovo + '.\n'
+        if icon_count:
+            icon_slovo = icon_slovo[:-2]
+            slovo += icon_slovo + '.\n'
+        # Получаем притчу или житие
+        # with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
+        #     for line in sign.readlines():
+        #         slovo += line
         return slovo
 
     def make_tomorrow(self, user: dict) -> str:
         slovo = 'Завтра '
         # Формируем дату
         date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
-        # Получаем данные из БД
+        # Получаем данные о дне из БД
         name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
+        # Заполняем название
         slovo += f'{name}. {Dni[work]} день, '
+        # Заполняем пост
         if fasting > 0:
-            slovo += 'постный, '
+            slovo += 'постный'
         else:
-            slovo += 'поста нет, '
+            slovo += 'поста нет'
+        # Заполняем венчание
         if crowning == 0:
-            slovo += 'Браковенчание не совершается.'
-        if crowning == 2:
-            slovo += 'венчание нежелательно.'
+            slovo += ', Браковенчание не совершается.'
+        elif crowning == 2:
+            slovo += ', венчание нежелательно.'
+        else:
+            slovo += '.'
         slovo += '\n'
         # Получаем приметы
         with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from requests import get
 import xml.etree.ElementTree as ET
 
-from utils import get_fasting, get_crowning
+from utils import get_fasting_type, get_crowning, get_holyday
 from utils import XMLCalendarError, DateDBError
 
 
@@ -13,16 +13,6 @@ class DB_handler:
         self.db_us_name = db_us_name
 
     def fill_daytable(self):
-        """
-        В XML теги <days>:
-            d - дата в формате ММ.ДД.
-            t - тип записи: 
-                1 - выходной день,
-                2 - рабочий и сокращенный (может быть использован для любого дня недели),
-                3 - рабочий день.
-            h - ссылкой на идентификатор праздника из <holidays>.
-            f - дата с которой был перенесен выходной день в формате ММ.ДД
-        """
         holydays = {}
         cur_year = date.today().year
         # Скачать и распаковать производственный календарь
@@ -32,21 +22,34 @@ class DB_handler:
         if not (xmldays:=root.find('days')):
             raise XMLCalendarError
         for day in xmldays:
+            """
+            В XML теги <days>:
+                d - дата в формате ММ.ДД.
+                t - тип записи: 
+                    1 - выходной день,
+                    2 - рабочий и сокращенный (может быть использован для любого дня недели),
+                    3 - рабочий день.
+                h - ссылкой на идентификатор праздника из <holidays>.
+                f - дата с которой был перенесен выходной день в формате ММ.ДД
+            """
             xml_date = day.get('d').split('.')
             holydays[int(xml_date[0])*100+int(xml_date[1])] = int(day.get('t'))
-        # Заполнить даты
-        date = date(year=cur_year,month=1,day=1)
+        # Заполнить даты в календаре на год
+        iter_date = date(year=cur_year,month=1,day=1)
         con = sqlite3.connect(self.db_ms_name)
         cur = con.cursor()
-        while date.year == cur_year:
-            if not (day_type := holydays.get(date.month*100+date.day)):
-                day_type = 3 if date.isoweekday() < 6 else 1
-            fasting = get_fasting(date, cur_year)
-            crowning = get_crowning(date, cur_year)
-            sql_req = "UPDATE days_os SET (work, fasting, crowning) = (?, ?, ?) "\
+        while iter_date.year == cur_year:
+            if not (day_type := holydays.get(iter_date.month*100+iter_date.day)):
+                day_type = 3 if iter_date.isoweekday() < 6 else 1
+            fasting = get_fasting_type(iter_date, cur_year)
+            crowning = get_crowning(iter_date, cur_year)
+            holyday = get_holyday(iter_date, cur_year)
+            sql_req = "UPDATE days_os SET (work, fasting, crowning, holy) = (?, ?, ?, ?) "\
                         "WHERE month=? AND day=?"
-            cur.execute(sql_req, (day_type, fasting, crowning, date.month, date.day))
-            date += timedelta(days=1)
+            cur.execute(sql_req, (day_type, fasting, crowning, holyday,
+                        iter_date.month, iter_date.day))
+            iter_date += timedelta(days=1)
+        # Обновить даты переходящих праздников
         con.commit()
 
     def get_day_values(self, day_date: date) -> tuple:
@@ -63,7 +66,7 @@ class DB_handler:
     def get_saints(self, day_date: date) -> list:
         con = sqlite3.connect(self.db_ms_name)
         cur = con.cursor()
-        sql_req = 'SELECT name, sign FROM saints WHERE month=? AND day=?'
+        sql_req = 'SELECT id, name, sign FROM saints WHERE month=? AND day=?'
         cur.execute(sql_req, (day_date.month, day_date.day))
         res = cur.fetchall()
         return res

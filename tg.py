@@ -3,11 +3,10 @@ from telebot.async_telebot import AsyncTeleBot
 import asyncio
 
 class TG_Sender:
-    def __init__(self, token, db_handler, ms_producer, async_loop):
+    def __init__(self, token, db_handler, ms_producer):
         self._bot = AsyncTeleBot(token)
         self._db_handler = db_handler
         self._ms_producer = ms_producer
-        self._async_loop = async_loop
 
         @self._bot.message_handler(commands=['help', 'start'])
         async def send_welcome(message):
@@ -36,9 +35,3 @@ class TG_Sender:
 
     def poll(self):
         return self._bot.polling()
-
-    async def scheduled_evening_message(self, user):
-        text = self._ms_producer.make_tomorrow(user)
-        await self._bot.send_message(user['id'], text)
-        self._async_loop.create_task(schedule_in(60,
-                    self.scheduled_evening_message(user)))
