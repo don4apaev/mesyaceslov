@@ -114,19 +114,19 @@ class MS_producer:
             print(holy)
             s_id, s_name, s_sign = holy
             if s_sign == 0:
-                icon_slovo += s_name + ', '
+                icon_slovo += s_name + ' · '
                 icon_count += 1
             elif s_sign != 1:
                 # tipicon 1F540-1F544
                 if s_sign:
                     saint_slovo += Znaki[s_sign]
-                saint_slovo += s_name + ', '
+                saint_slovo += s_name + ' · '
                 saint_count += 1
         if saint_count:
-            saint_slovo = saint_slovo[:-2]
+            saint_slovo = saint_slovo[:-3]
             slovo += saint_slovo + '.\n'
         if icon_count:
-            icon_slovo = icon_slovo[:-2]
+            icon_slovo = icon_slovo[:-3]
             slovo += icon_slovo + '.\n'
         # Получаем притчу или житие
         # with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
