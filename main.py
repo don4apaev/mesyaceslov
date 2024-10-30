@@ -11,6 +11,8 @@ from tg import TG_Sender
 from utils import DB_MS_NAME, DB_US_NAME, schedule_in
 from tokens import TG_TOKEN
 
+# TODO:
+# - логи для статистики
 
 def main():
     db = DB_handler(DB_MS_NAME, DB_US_NAME)

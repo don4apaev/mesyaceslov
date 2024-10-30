@@ -111,7 +111,6 @@ class MS_producer:
         icon_count = 0
         # Отделяем дни поминования от икон
         for holy in holy_list:
-            print(holy)
             s_id, s_name, s_sign = holy
             if s_sign == 0:
                 icon_slovo += s_name + ' · '
@@ -149,14 +148,17 @@ class MS_producer:
             slovo += 'поста нет'
         # Заполняем венчание
         if crowning == 0:
-            slovo += ', Браковенчание не совершается.'
+            slovo += ', браковенчание не совершается.'
         elif crowning == 2:
             slovo += ', венчание нежелательно.'
         else:
             slovo += '.'
         slovo += '\n'
         # Получаем приметы
-        with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
-            for line in sign.readlines():
-                slovo += line
+        try:
+            with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
+                for line in sign.readlines():
+                    slovo += line
+        except FileNotFoundError:
+            pass
         return slovo
