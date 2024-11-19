@@ -51,6 +51,7 @@ class DB_handler:
             iter_date += timedelta(days=1)
         # Обновить даты переходящих праздников
         # 104 - первое вск после 31 окт
+        # 230 - ближайшее вск к 23 ноя
         con.commit()
 
     def get_day_values(self, day_date: date) -> tuple:
