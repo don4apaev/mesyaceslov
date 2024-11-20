@@ -5,9 +5,10 @@ from enum import Enum
 
 
 class Days(Enum):
+    YESTERDAY = -1
     TODAY = 0
     TOMMOROW = 1
-    YESTERDAY = 2
+    ERROR = 2
 
 class MesyaceslovError(Exception):
     pass
