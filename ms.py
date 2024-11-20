@@ -48,11 +48,13 @@ Posty = {
 }
 
 Znaki = {
+    0 : '\N{EIGHT POINTED BLACK STAR}'
     1 : '\N{circled cross pommee}',
     2 : '\N{cross pommee with half-circle below}',
     3 : '\N{cross pommee}',
     4 : '\N{notched left semicircle with three dots}',
     5 : '\N{notched right semicircle with three dots}',
+    6 : '\N{BLACK CIRCLE}'
 }
 
 class MS_producer:
@@ -102,33 +104,22 @@ class MS_producer:
         # Заполняем Великие праздники
         if holy:
             name, sign = get_saint(holy)
-            slovo += f'Сегодня Великий праздник - {name}!\n'
+            slovo += f'Сегодня Великий праздник - {Znaki[sign]} {name}!\n'
         # Получаем поминаемых святых и иконы
         holy_list = self._db_handler.get_saints(date)
-        saint_slovo = 'Сегодня день памяти: '
-        saint_count = 0
-        icon_slovo = 'Сегодня прославляются иконы Божей Матери: '
-        icon_count = 0
+        saint_slovo = 'Сегодня день памяти:'
+        icon_slovo = 'Сегодня прославляются иконы Божей Матери:'
         # Отделяем дни поминования от икон
         for holy in holy_list:
             s_id, s_name, s_sign = holy
             if s_sign == 0:
-                icon_slovo += s_name + ' · '
-                icon_count += 1
+                icon_slovo += '\n' + Znaki[s_sign] + ' ' + s_name
+            elif s_sign is None:
+                saint_slovo += '\n' + Znaki[6] + ' ' + s_name
             elif s_sign != 1:
-                # tipicon 1F540-1F544
-                if s_sign:
-                    saint_slovo += Znaki[s_sign]
-                saint_slovo += s_name + ' · '
-                saint_count += 1
-        if saint_count:
-            saint_slovo = saint_slovo[:-3]
-            slovo += saint_slovo + '.\n'
-        if icon_count:
-            icon_slovo = icon_slovo[:-3]
-            slovo += icon_slovo + '.\n'
+                saint_slovo += '\n' + Znaki[s_sign] + ' ' + s_name
         # Получаем притчу или житие
-        # with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
+        # with open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
         #     for line in sign.readlines():
         #         slovo += line
         return slovo
@@ -156,7 +147,7 @@ class MS_producer:
         slovo += '\n'
         # Получаем приметы
         try:
-            with open(f'signs/{date.month}/{date.day}.txt', 'r') as sign:
+            with open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
                 for line in sign.readlines():
                     slovo += line
         except FileNotFoundError:
