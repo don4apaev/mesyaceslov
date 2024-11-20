@@ -1,6 +1,13 @@
 from datetime import date, timedelta
 from dateutil import easter
 import asyncio
+from enum import Enum
+
+
+class Days(Enum):
+    TODAY = 0
+    TOMMOROW = 1
+    YESTERDAY = 2
 
 class MesyaceslovError(Exception):
     pass

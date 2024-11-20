@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from utils import ZeroInDate
+from utils import ZeroInDate, Days
 
 Cyril_numbers = {
     1: 'а',
@@ -48,13 +48,13 @@ Posty = {
 }
 
 Znaki = {
-    0 : '\N{EIGHT POINTED BLACK STAR}'
+    0 : '\N{EIGHT POINTED BLACK STAR}',
     1 : '\N{circled cross pommee}',
     2 : '\N{cross pommee with half-circle below}',
     3 : '\N{cross pommee}',
     4 : '\N{notched left semicircle with three dots}',
     5 : '\N{notched right semicircle with three dots}',
-    6 : '\N{BLACK CIRCLE}'
+    6 : '\N{BLACK CIRCLE}',
 }
 
 class MS_producer:
@@ -85,11 +85,23 @@ class MS_producer:
             creation += 1
         return date.year + creation
 
-    def make_today(self, user: dict) -> str:
-        slovo = 'Сегодня '
+    def make_holy(self, user: dict, day: Days) -> str:
+        slovo: str
         # Формируем дату
-        date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
-        old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        if day == Days.TODAY:
+            slovo = 'Сегодня '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
+            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        elif day == Days.TOMMOROW:
+            slovo = 'Завтра '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
+            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        elif day == Days.YESTERDAY:
+            slovo = 'Вчера было '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
+            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        else:
+            return "Друг, у меня какие-то проблемы... Обратись к администратору."
         # Получаем данные о дне из БД
         name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
         # Заполняем дату
@@ -98,17 +110,16 @@ class MS_producer:
         f'{self._creation_year(date)} г. от сотворения мира.'
         # Заполняем пост
         if fasting := Posty.get(fasting) :
-            slovo += f' {fasting}.\n'
-        else:
-            slovo += '\n'
+            slovo += f' {fasting}.'
+        slovo += '\n'
         # Заполняем Великие праздники
         if holy:
             name, sign = get_saint(holy)
-            slovo += f'Сегодня Великий праздник - {Znaki[sign]} {name}!\n'
+            slovo += f'\nВеликий праздник - {Znaki[sign]} {name}!\n'
         # Получаем поминаемых святых и иконы
         holy_list = self._db_handler.get_saints(date)
-        saint_slovo = 'Сегодня день памяти:'
-        icon_slovo = 'Сегодня прославляются иконы Божей Матери:'
+        saint_slovo = ''
+        icon_slovo = ''
         # Отделяем дни поминования от икон
         for holy in holy_list:
             s_id, s_name, s_sign = holy
@@ -118,16 +129,30 @@ class MS_producer:
                 saint_slovo += '\n' + Znaki[6] + ' ' + s_name
             elif s_sign != 1:
                 saint_slovo += '\n' + Znaki[s_sign] + ' ' + s_name
+        if len(saint_slovo):
+            slovo += '\nДень памяти:' + saint_slovo
+        if len(icon_slovo):
+            slovo += '\n\nПрославляются иконы Божей Матери:'  + icon_slovo
         # Получаем притчу или житие
         # with open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
         #     for line in sign.readlines():
         #         slovo += line
         return slovo
 
-    def make_tomorrow(self, user: dict) -> str:
-        slovo = 'Завтра '
+    def make_sign(self, user: dict, day: Days) -> str:
+        slovo: str
         # Формируем дату
-        date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
+        if day == Days.TODAY:
+            slovo = 'Сегодня '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
+        elif day == Days.TOMMOROW:
+            slovo = 'Завтра '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
+        elif day == Days.YESTERDAY:
+            slovo = 'Истёк день рекомый '
+            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
+        else:
+            return "Друг, у меня какие-то проблемы... Обратись к администратору."
         # Получаем данные о дне из БД
         name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
         # Заполняем название
@@ -144,7 +169,7 @@ class MS_producer:
             slovo += ', венчание нежелательно.'
         else:
             slovo += '.'
-        slovo += '\n'
+        slovo += '\n\n'
         # Получаем приметы
         try:
             with open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
