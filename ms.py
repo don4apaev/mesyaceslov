@@ -111,9 +111,8 @@ class MS_producer:
             return Error
         # Заполняем дату
         old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
-        slovo += f'{date.day}[{self._arab_to_cyril(date.day)}] {Mesyacy[date.month]} '\
-        f'({old_date.day}[{self._arab_to_cyril(old_date.day)}] {Mesyacy[old_date.month]} cт.ст.) '\
-        f'{self._creation_year(date)} г. от сотворения мира.'
+        slovo += f'*{self._arab_to_cyril(date.day)} {Mesyacy[date.month]} '\
+                    f'{self._creation_year(date)} г.* от сотворения мира.'
         # Заполняем пост
         if fasting := Posty.get(fasting) :
             slovo += f' {fasting}.'
