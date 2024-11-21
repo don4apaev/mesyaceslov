@@ -1,5 +1,4 @@
 import aiosqlite
-import sqlite3
 import aiohttp
 import asyncio
 from datetime import date, timedelta
@@ -10,7 +9,6 @@ from utils import XMLCalendarError
 
 class DB_handler:
     def __init__(self, db_name: str, logger):
-        sqlite3.enable_callback_tracebacks(False)
         self.lock = asyncio.Lock()
         self.db_name = db_name
         self._logger = logger
@@ -30,7 +28,7 @@ class User_DB_handler(DB_handler):
                 cursor = await self.db.execute(sql_req, (user_id,))
                 user = await cursor.fetchone()
                 if user:
-                    self._logger.dubug(f'Try to add already existin user {user_id}')
+                    self._logger.debug(f'Try to add already existin user {user_id}')
                     return
                 sql_req = 'INSERT INTO users (id, admin, mailing, timezone, morning, evening) '\
                         'VALUES (?, ?, ?, ?, ?, ?)'
@@ -40,7 +38,7 @@ class User_DB_handler(DB_handler):
             self._logger.error(f'Some exception while adding user {user_id}\n'\
                                 f'\t"{e}" on {e.__traceback__.tb_lineno}')
         else:
-            self._logger.dubug(f'New user {user_id} addded to DB')
+            self._logger.debug(f'New user {user_id} addded to DB')
 
 
     async def get_user_info(self, user_id) -> dict:
@@ -131,7 +129,7 @@ class Days_DB_handler(DB_handler):
                                 f'\t"{e}" on {e.__traceback__.tb_lineno}')
             return
         else:
-            self._logger.dubug(f'days_os updated')
+            self._logger.debug(f'days_os updated')
         # Обновить данные в saints
         # Обновить даты переходящих праздников
         # 104 - первое вск после 31 окт
