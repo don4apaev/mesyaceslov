@@ -60,8 +60,9 @@ Znaki = {
 Error = "Друг, у меня какие-то проблемы... Обратись к администратору."
 
 class MS_producer:
-    def __init__(self, db_handler):
+    def __init__(self, db_handler, logger):
         self._db_handler = db_handler
+        self._logger = logger
 
     def _arab_to_cyril(self, number: int) -> str:
         cyr_number = ''
@@ -181,5 +182,6 @@ class MS_producer:
                 for line in sign.readlines():
                     slovo += line
         except FileNotFoundError:
-            pass
+            self._logger.error(f'Some exception while get Slovo for  {date.day}.{date.month}\n'\
+                                f'\t{e} on {e.__traceback__.tb_lineno}')
         return slovo

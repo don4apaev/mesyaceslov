@@ -5,17 +5,17 @@ import asyncio
 from utils import Days
 
 class TG_Sender:
-    def __init__(self, token, db_handler, ms_producer):
+    def __init__(self, token, db_handler, ms_producer, logger):
         self._bot = AsyncTeleBot(token)
         self._db_handler = db_handler
         self._ms_producer = ms_producer
+        self._logger = logger
 
         @self._bot.message_handler(commands=['help', 'start'])
         async def send_welcome(message):
-            try:
+            if message.text == '/start':
+                self._logger.info(f'New user {message.chat.id}')
                 await self._db_handler.add_user(message.chat.id)
-            except:
-                pass
             text = "Привет. Я бот Месяцеслова.\n\nТы можешь узнать у меня, что говорит"\
             " Месяцеслов о сегодняшнем дне (/today), дне прошедшем (/yesterday) и "\
             "дне грядущем (/tomorrow).\n\nУдачи тебе сегодня, завтра и всегда!"
@@ -33,12 +33,11 @@ class TG_Sender:
             await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
 
         @self._bot.callback_query_handler(func=lambda call: call.data[0:5] in ('sign_', 'holy_'))
-        async def send_today_sign(call):
+        async def send_slovo_by_request(call):
             message = call.message
-            # get user's timezone info 
-            try:
-                user = await self._db_handler.get_user_info(message.chat.id)
-            except:
+            # get user's timezone info
+            user = await self._db_handler.get_user_info(message.chat.id)
+            if user is None:
                 user = {'timezone':0}
             # set mesyaceslov day
             if call.data.endswith('yesterday'):
@@ -61,6 +60,7 @@ class TG_Sender:
             parse = 'Markdown'
             # post info into question
             await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, parse_mode=parse)
+            self._logger.debug(f'Send Slovo for request of user {message.chat.id}')
 
         @self._bot.message_handler()
         async def send_error(message):

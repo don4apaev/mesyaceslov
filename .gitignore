@@ -3,3 +3,4 @@ docs/
 Pipfile.lock
 users.db
 tokens.py
+log
