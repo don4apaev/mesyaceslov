@@ -1,4 +1,3 @@
-
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio
@@ -13,7 +12,10 @@ class TG_Sender:
 
         @self._bot.message_handler(commands=['help', 'start'])
         async def send_welcome(message):
-            self._db_handler.add_user(message.chat.id)
+            try:
+                await self._db_handler.add_user(message.chat.id)
+            except:
+                pass
             text = "Привет. Я бот Месяцеслова.\n\nТы можешь узнать у меня, что говорит"\
             " Месяцеслов о сегодняшнем дне (/today), дне прошедшем (/yesterday) и "\
             "дне грядущем (/tomorrow).\n\nУдачи тебе сегодня, завтра и всегда!"
@@ -35,7 +37,7 @@ class TG_Sender:
             message = call.message
             # get user's timezone info 
             try:
-                user = self._db_handler.get_user_info(message.chat.id)
+                user = await self._db_handler.get_user_info(message.chat.id)
             except:
                 user = {'timezone':0}
             # set mesyaceslov day
@@ -49,14 +51,14 @@ class TG_Sender:
                 day = Days.ERROR
             # get info
             if call.data.startswith('sign'):
-                text = self._ms_producer.make_sign(user, day)
-                parse = 'Markdown'
+                text_func = self._ms_producer.make_sign
             elif call.data.startswith('holy'):
-                text = self._ms_producer.make_holy(user, day)
-                parse = None
+                text_func = self._ms_producer.make_holy
             else:
-                text = self._ms_producer.make_holy(user, Days.ERROR)
-                parse = None
+                text_func = self._ms_producer.make_sign
+                day = Days.ERROR
+            text = await text_func(user, day)
+            parse = 'Markdown'
             # post info into question
             await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, parse_mode=parse)
 

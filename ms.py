@@ -57,6 +57,8 @@ Znaki = {
     6 : '\N{BLACK CIRCLE}',
 }
 
+Error = "Друг, у меня какие-то проблемы... Обратись к администратору."
+
 class MS_producer:
     def __init__(self, db_handler):
         self._db_handler = db_handler
@@ -85,26 +87,29 @@ class MS_producer:
             creation += 1
         return date.year + creation
 
-    def make_holy(self, user: dict, day: Days) -> str:
+    async def make_holy(self, user: dict, day: Days) -> str:
         slovo: str
         # Формируем дату
         if day == Days.TODAY:
             slovo = 'Сегодня '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
-            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         elif day == Days.TOMMOROW:
             slovo = 'Завтра '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
-            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         elif day == Days.YESTERDAY:
             slovo = 'Вчера было '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
-            old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         else:
-            return "Друг, у меня какие-то проблемы... Обратись к администратору."
+            return Error
         # Получаем данные о дне из БД
-        name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
+        if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+            return Error
+        name, work, fasting, crowning, holy = day_info
+        # Получаем поминаемых святых и иконы  из БД
+        if ( saints_list := await self._db_handler.get_saints(date) ) is None:
+            return Error
         # Заполняем дату
+        old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         slovo += f'{date.day}[{self._arab_to_cyril(date.day)}] {Mesyacy[date.month]} '\
         f'({old_date.day}[{self._arab_to_cyril(old_date.day)}] {Mesyacy[old_date.month]} cт.ст.) '\
         f'{self._creation_year(date)} г. от сотворения мира.'
@@ -114,15 +119,13 @@ class MS_producer:
         slovo += '\n'
         # Заполняем Великие праздники
         if holy:
-            name, sign = get_saint(holy)
+            name, sign, _, _ = get_saint(holy)
             slovo += f'\nВеликий праздник - {Znaki[sign]} {name}!\n'
-        # Получаем поминаемых святых и иконы
-        holy_list = self._db_handler.get_saints(date)
+        # Отделяем дни поминования от икон
         saint_slovo = ''
         icon_slovo = ''
-        # Отделяем дни поминования от икон
-        for holy in holy_list:
-            s_id, s_name, s_sign = holy
+        for holy in saints_list:
+            _, s_name, s_sign = holy
             if s_sign == 0:
                 icon_slovo += '\n' + Znaki[s_sign] + ' ' + s_name
             elif s_sign is None:
@@ -139,14 +142,14 @@ class MS_producer:
         #         slovo += line
         return slovo
 
-    def make_sign(self, user: dict, day: Days) -> str:
+    async def make_sign(self, user: dict, day: Days) -> str:
         slovo: str
         # Формируем дату
         if day == Days.TODAY:
-            slovo = 'Сегодня '
+            slovo = 'Сегодня - '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         elif day == Days.TOMMOROW:
-            slovo = 'Завтра '
+            slovo = 'Завтра - '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
         elif day == Days.YESTERDAY:
             slovo = 'Истёк день рекомый '
@@ -154,9 +157,11 @@ class MS_producer:
         else:
             return "Друг, у меня какие-то проблемы... Обратись к администратору."
         # Получаем данные о дне из БД
-        name, work, fasting, crowning, holy = self._db_handler.get_day_values(date)
+        if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+            return Error
+        name, work, fasting, crowning, _ = day_info
         # Заполняем название
-        slovo += f'{name}. {Dni[work]} день, '
+        slovo += f'*{name}*. {Dni[work]} день, '
         # Заполняем пост
         if fasting > 0:
             slovo += 'постный'

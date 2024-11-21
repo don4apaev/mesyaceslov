@@ -3,6 +3,7 @@ python_version = "*"
 
 [packages]
 #dateutil = "*"
-vk_api = "*"
+#vk_api = "*"
 pyTelegramBotAPI = "*"
 aiohttp="*"
+aiosqlite="*"

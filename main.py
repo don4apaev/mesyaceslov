@@ -6,20 +6,22 @@
 
 import asyncio
 from ms import MS_producer
-from db import DB_handler
+from db import Days_DB_handler, User_DB_handler
 from tg import TG_Sender
-from utils import DB_MS_NAME, DB_US_NAME, schedule_in
+from utils import DB_MS_NAME, DB_US_NAME
 from tokens import TG_TOKEN
 
 # TODO:
 # - логи для статистики
 
-def main():
-    db = DB_handler(DB_MS_NAME, DB_US_NAME)
-    ms = MS_producer(db)
-    tg = TG_Sender(TG_TOKEN, db, ms)
+async def main():
+    d_db = Days_DB_handler(DB_MS_NAME)
+    u_db = User_DB_handler(DB_US_NAME)
+    async with d_db, u_db:
+        ms = MS_producer(d_db)
+        tg = TG_Sender(TG_TOKEN, u_db, ms)
     # Запустить ботов
-    asyncio.run(tg.poll())
+        await tg.poll()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

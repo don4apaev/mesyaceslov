@@ -313,8 +313,3 @@ def get_crowning(day_date: date, cur_year: int) -> int:
         return 2
     else:
         return 1
-
-async def schedule_in(secs, coro, ):
-    print('SCHED', secs)
-    await asyncio.sleep(secs)
-    return await coro
