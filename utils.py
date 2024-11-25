@@ -22,6 +22,9 @@ class XMLCalendarError(MesyaceslovError):
 class DateDBError(MesyaceslovError):
     pass
 
+class InitError(MesyaceslovError):
+    pass
+
 DB_MS_NAME = 'mesyaceslov.db'
 DB_US_NAME = 'users.db'
 

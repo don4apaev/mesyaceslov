@@ -2,5 +2,4 @@ __pycache__/
 docs/
 Pipfile.lock
 users.db
-tokens.py
 log
