@@ -22,8 +22,8 @@ class DB_handler:
 
 class User_DB_handler(DB_handler):
     async def add_user(self, user_id: int):
-        try:
-            async with self.lock:
+        async with self.lock:
+            try:
                 sql_req = 'SELECT * FROM users WHERE id=?'
                 cursor = await self.db.execute(sql_req, (user_id,))
                 user = await cursor.fetchone()
@@ -34,16 +34,16 @@ class User_DB_handler(DB_handler):
                         'VALUES (?, ?, ?, ?, ?, ?)'
                 cursor = await self.db.execute(sql_req, (user_id, False, None, 3, None, None))
                 await self.db.commit()
-        except Exception as e:
-            self._logger.error(f'Some exception while adding user {user_id}\n'\
-                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
-        else:
-            self._logger.debug(f'New user {user_id} addded to DB')
+            except Exception as e:
+                self._logger.error(f'Some exception while adding user {user_id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+            else:
+                self._logger.debug(f'New user {user_id} addded to DB')
 
 
     async def get_user_info(self, user_id) -> dict:
-        try:
-            async with self.lock:
+        async with self.lock:
+            try:
                 sql_req = 'SELECT * FROM users WHERE id=?'
                 async with self.db.execute(sql_req, (user_id,)) as cursor:
                     user = await cursor.fetchone()
@@ -51,24 +51,24 @@ class User_DB_handler(DB_handler):
                         return None
                     keys = ('id', 'admin', 'mailing', 'timezone', 'morning', 'evening')
                     return dict(zip(keys, user))
-        except Exception as e:
-            self._logger.error(f'Some exception while get user {user_id} info\n'\
-                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
-            return None
+            except Exception as e:
+                self._logger.error(f'Some exception while get user {user_id} info\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                return None
 
     async def get_users(self) -> list:
-        try:
-            async with self.lock:
+        async with self.lock:
+            try:
                 sql_req = 'SELECT id, mailing, timezone, morning, evening FROM users'
                 async with self.db.execute(sql_req) as cursor:
                     users = await cursor.fetchall()
                     if len(users) == 0:
                         return None
                     return dict(users)
-        except Exception as e:
-            self._logger.error(f'Some exception while get users info\n'\
-                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
-            return None
+            except Exception as e:
+                self._logger.error(f'Some exception while get users info\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                return None
 
 class Days_DB_handler(DB_handler):
     async def fill_daytable(self):

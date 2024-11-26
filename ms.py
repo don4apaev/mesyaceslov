@@ -1,3 +1,4 @@
+import aiofiles
 from datetime import datetime, timedelta, timezone
 
 from utils import ZeroInDate, Days
@@ -155,7 +156,7 @@ class MS_producer:
             slovo = 'Истёк день рекомый '
             date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
         else:
-            return "Друг, у меня какие-то проблемы... Обратись к администратору."
+            return Error
         # Получаем данные о дне из БД
         if ( day_info := await self._db_handler.get_day_values(date) ) is None:
             return Error
@@ -177,10 +178,14 @@ class MS_producer:
         slovo += '\n\n'
         # Получаем приметы
         try:
-            with open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
-                for line in sign.readlines():
+            async with aiofiles.open(f'signs/{date.month}/{date.day}.md', 'r') as sign:
+                async for line in sign:
                     slovo += line
         except FileNotFoundError:
+            self._logger.error(f'Can\'t find  Slovo for  {date.day}.{date.month}')
+            return Error
+        except Exception as e:
             self._logger.error(f'Some exception while get Slovo for  {date.day}.{date.month}\n'\
                                 f'\t{e} on {e.__traceback__.tb_lineno}')
+            return Error
         return slovo

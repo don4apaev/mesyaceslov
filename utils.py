@@ -25,9 +25,6 @@ class DateDBError(MesyaceslovError):
 class InitError(MesyaceslovError):
     pass
 
-DB_MS_NAME = 'mesyaceslov.db'
-DB_US_NAME = 'users.db'
-
 def get_fasting(day_date: date, cur_year: int) -> int:
     '''
     Узнать, выпадает ли день на многодневный или однодневный пост.
