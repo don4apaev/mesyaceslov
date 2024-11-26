@@ -3,12 +3,14 @@ import aiohttp
 import asyncio
 from datetime import date, timedelta
 import xml.etree.ElementTree as ET
+from typing import Any
+from logging import Logger
 
 from utils import get_fasting_type, get_crowning, get_holyday
 from utils import XMLCalendarError
 
 class DB_handler:
-    def __init__(self, db_name: str, logger):
+    def __init__(self, db_name: str, logger: Logger):
         self.lock = asyncio.Lock()
         self.db_name = db_name
         self._logger = logger
@@ -41,7 +43,7 @@ class User_DB_handler(DB_handler):
                 self._logger.debug(f'New user {user_id} addded to DB')
 
 
-    async def get_user_info(self, user_id) -> dict:
+    async def get_user_info(self, user_id: int) -> dict:
         async with self.lock:
             try:
                 sql_req = 'SELECT * FROM users WHERE id=?'
@@ -55,6 +57,35 @@ class User_DB_handler(DB_handler):
                 self._logger.error(f'Some exception while get user {user_id} info\n'\
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
                 return None
+
+    async def _set_user_field(self, user_id: int, field_name: str, field_value: Any) -> bool:
+        async with self.lock:
+            try:
+                sql_req = 'SELECT * FROM users WHERE id=?'
+                cursor = await self.db.execute(sql_req, (user_id,))
+                user = await cursor.fetchone()
+                if not user:
+                    self._logger.error(f'No user {user_id} in DB')
+                    return False
+                sql_req = f"UPDATE users SET {field_name} = ? WHERE id=?"
+                await self.db.execute(sql_req, (field_value, user_id))
+                await self.db.commit()
+            except Exception as e:
+                self._logger.error(f'Some exception while update user {user_id} {field_value} data\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                return False
+            else:
+                self._logger.debug(f'Update user {user_id} {field_name} to {field_value}')
+                return True
+
+    async def set_user_mailing(self, user_id: int, mailing: bool) -> bool:
+        return await self._set_user_field(user_id, 'mailing', mailing)
+    async def set_user_timezone(self, user_id: int, timezone: int) -> bool:
+        return await self._set_user_field(user_id, 'timezone', timezone)
+    async def set_user_morning(self, user_id: int, morning: int) -> bool:
+        return await self._set_user_field(user_id, 'morning', morning)
+    async def set_user_evening(self, user_id: int, evening: int) -> bool:
+        return await self._set_user_field(user_id, 'evening', evening)
 
     async def get_users(self) -> list:
         async with self.lock:
@@ -134,7 +165,7 @@ class Days_DB_handler(DB_handler):
         # Обновить даты переходящих праздников
         # 104 - первое вск после 31 окт
         # 230 - ближайшее вск к 23 ноя
-        con.commit()
+        await self.db.commit()
 
     async def get_day_values(self, day_date: date) -> tuple:
         try:
