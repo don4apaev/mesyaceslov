@@ -92,15 +92,15 @@ class MS_producer:
     async def make_holy(self, user: dict, day: Days) -> str:
         slovo: str
         # Формируем дату
+        date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         if day == Days.TODAY:
             slovo = 'Сегодня '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         elif day == Days.TOMMOROW:
             slovo = 'Завтра '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
+            date = date + timedelta(days=1)
         elif day == Days.YESTERDAY:
             slovo = 'Вчера было '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
+            date = date - timedelta(days=1)
         else:
             return Error
         # Получаем данные о дне из БД
@@ -111,7 +111,7 @@ class MS_producer:
         if ( saints_list := await self._db_handler.get_saints(date) ) is None:
             return Error
         # Заполняем дату
-        old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        # old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         slovo += f'*{self._arab_to_cyril(date.day)} {Mesyacy[date.month]} '\
                     f'{self._creation_year(date)} г.* от сотворения мира.'
         # Заполняем пост
@@ -146,15 +146,15 @@ class MS_producer:
     async def make_sign(self, user: dict, day: Days) -> str:
         slovo: str
         # Формируем дату
+        date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         if day == Days.TODAY:
             slovo = 'Сегодня - '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
         elif day == Days.TOMMOROW:
             slovo = 'Завтра - '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() + timedelta(days=1)
+            date = date + timedelta(days=1)
         elif day == Days.YESTERDAY:
             slovo = 'Истёк день рекомый '
-            date = datetime.now(timezone(timedelta(hours=user['timezone']))).date() - timedelta(days=1)
+            date = date - timedelta(days=1)
         else:
             return Error
         # Получаем данные о дне из БД

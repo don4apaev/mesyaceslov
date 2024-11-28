@@ -23,7 +23,7 @@ class DB_handler:
         await self.db.close()
 
 class User_DB_handler(DB_handler):
-    async def add_user(self, user_id: int):
+    async def add_user(self, user_id: int) -> bool:
         async with self.lock:
             try:
                 sql_req = 'SELECT * FROM users WHERE id=?'
@@ -31,7 +31,7 @@ class User_DB_handler(DB_handler):
                 user = await cursor.fetchone()
                 if user:
                     self._logger.debug(f'Try to add already existin user {user_id}')
-                    return
+                    return False
                 sql_req = 'INSERT INTO users (id, admin, mailing, timezone, morning, evening) '\
                         'VALUES (?, ?, ?, ?, ?, ?)'
                 cursor = await self.db.execute(sql_req, (user_id, False, None, 3, None, None))
@@ -39,8 +39,10 @@ class User_DB_handler(DB_handler):
             except Exception as e:
                 self._logger.error(f'Some exception while adding user {user_id}\n'\
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                return False
             else:
                 self._logger.debug(f'New user {user_id} addded to DB')
+                return True
 
 
     async def get_user_info(self, user_id: int) -> dict:
@@ -87,6 +89,26 @@ class User_DB_handler(DB_handler):
     async def set_user_evening(self, user_id: int, evening: int) -> bool:
         return await self._set_user_field(user_id, 'evening', evening)
 
+    async def _get_mailing_users(self, mailing_type, hour_utc):
+        async with self.lock:
+            try:
+                sql_req = f'SELECT id, timezone FROM users WHERE mailing=? AND {mailing_type}=?'
+                async with self.db.execute(sql_req, (True, hour_utc)) as cursor:
+                    users = await cursor.fetchall()
+                    if len(users) == 0:
+                        return tuple()
+                    keys = ('id', 'timezone',)
+                    return tuple(dict(zip(keys, user)) for user in users)
+            except Exception as e:
+                self._logger.error(f'Some exception while get users mailing info\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                return tuple()
+
+    async def get_today_mailing_users(self, hour_utc):
+        return await self._get_mailing_users('morning', hour_utc)
+    async def get_tomorrow_mailing_users(self, hour_utc):
+        return await self._get_mailing_users('evening', hour_utc)
+
     async def get_users(self) -> list:
         async with self.lock:
             try:
@@ -94,12 +116,13 @@ class User_DB_handler(DB_handler):
                 async with self.db.execute(sql_req) as cursor:
                     users = await cursor.fetchall()
                     if len(users) == 0:
-                        return None
-                    return dict(users)
+                        return tuple()
+                    keys = ('id', 'mailing', 'timezone', 'morning', 'evening')
+                    return tuple(dict(zip(keys, user)) for user in users)
             except Exception as e:
                 self._logger.error(f'Some exception while get users info\n'\
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
-                return None
+                return tuple()
 
 class Days_DB_handler(DB_handler):
     async def fill_daytable(self):

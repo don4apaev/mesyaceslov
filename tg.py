@@ -1,15 +1,9 @@
 from telebot.async_telebot import AsyncTeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.asyncio_helper import ApiTelegramException
 import asyncio
 
 from utils import Days
-
-Hours_ending = {
-    1: '',
-    2: 'а',
-    3: 'а',
-    4: 'а',
-}
 
 Error = 'Какая-то проблема с обновлением данных... Обратись к администратору или попробуй позже.'
 
@@ -21,21 +15,48 @@ class TG_Sender:
         self._logger = logger
         self._user_inreract = {}
 
-        @self._bot.message_handler(commands=['help', 'start'])
+        @self._bot.message_handler(commands=['start'])
         async def welcome_send(message):
             """
-            Старт и подсказка
+            Начало работы с ботом: оповещение и опрос
             """
-            if message.text == '/start':
-                self._logger.info(f'New user {message.chat.id}')
-                await self._db_handler.add_user(message.chat.id)
-            text = "Привет. Я бот Месяцеслова.\n\n"\
-                "Ты можешь узнать у меня, что говорит Месяцеслов о сегодняшнем дне "\
-                "(/today), дне прошедшем (/yesterday) и дне грядущем (/tomorrow).\n"\
-                "Для определения даты по умолчанию используется часовой пояс МСК+0. "\
-                "Ты всегда можешь изменить его командой /timezone.\n\n"\
-                "Удачи тебе сегодня, завтра и всегда!"
-            await self._bot.send_message(message.chat.id, text)
+            self._logger.info(f'New user {message.chat.id}')
+            if await self._db_handler.add_user(message.chat.id):
+                text = "Привет. Я бот Месяцеслова.\n\n"\
+                    "Ты можешь узнать у меня, что говорит Месяцеслов о сегодняшнем дне "\
+                    "(/today), дне прошедшем (/yesterday) и дне грядущем (/tomorrow).\n\n"\
+                    "Удачи тебе сегодня, завтра и всегда!"
+                try:
+                    await self._bot.send_message(message.chat.id, text)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                text = "Для определения твоей даты я использую информацию о часовом поясе. "\
+                    "По умолчанию используется часовой пояс МСК. Ты всегда можешь изменить "\
+                    "его командой /timezone.\n\n"\
+                    "Пришли мне свой часовой пояс в целых часах относительно Москвы:"
+                keyboard = InlineKeyboardMarkup(row_width=1)
+                keyboard.add(InlineKeyboardButton(text="По умолчанию",callback_data='editing_cancel'))
+                try:
+                    message = await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                self._user_inreract[message.chat.id] = {'type':2, 'msg':message.message_id}
+            else:
+                text = Error
+                try:
+                    await self._bot.send_message(message.chat.id, text)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+
+        @self._bot.message_handler(commands=['help'])
+        async def help_send(message):
+            """
+            Подсказка - вывод доступных команд
+            """
+            pass
 
         @self._bot.message_handler(commands=['today', 'tomorrow', 'yesterday'])
         async def slovo_reply_commands(message):
@@ -48,7 +69,11 @@ class TG_Sender:
             button_sing = InlineKeyboardButton(text="Приметы", callback_data=f'sign_{message.text[1:]}')
             button_holy = InlineKeyboardButton(text="Поминаемые святые", callback_data=f'holy_{message.text[1:]}')
             keyboard.add(button_sing, button_holy)
-            await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            try:
+                await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data[:5] in ('sign_', 'holy_'))
         async def slovo_send_by_request(call):
@@ -58,7 +83,7 @@ class TG_Sender:
             message = call.message
             # Получаем часовой пояс пользователя
             user = await self._db_handler.get_user_info(message.chat.id)
-            if user is None or user['timezone'] is None:
+            if user is None:
                 user = {'timezone':0}
             # Получаем запрашиваемый день
             if call.data.endswith('yesterday'):
@@ -80,8 +105,12 @@ class TG_Sender:
             text = await text_func(user, day)
             parse = 'Markdown'
             # Отредактировать сообщение
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, parse_mode=parse)
-            self._logger.debug(f'Send Slovo for request of user {message.chat.id}')
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, parse_mode=parse)
+                self._logger.debug(f'Send Slovo for request of user {message.chat.id}')
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.message_handler(commands=['timezone'])
         async def timezone_start_choice(message):
@@ -101,8 +130,11 @@ class TG_Sender:
                 keyboard.add(*button_list)
             else:
                 text = Error
-            await self._bot.send_message(message.chat.id, text,
-                                        reply_markup=keyboard)
+            try:
+                await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data == 'timezone_change')
         async def timezone_change(call):
@@ -113,20 +145,28 @@ class TG_Sender:
             text = message.text[:message.text.rindex('\n')]
             text += "\nПришли мне свой часовой пояс в целых часах относительно Москвы:"
             keyboard = InlineKeyboardMarkup(row_width=1)
-            button_c = InlineKeyboardButton(text="Отменить",callback_data='editing_cancel')
-            keyboard.add(button_c)
+            keyboard.add(InlineKeyboardButton(text="Отменить",callback_data='editing_cancel'))
             # Запомнить пользователя
             self._user_inreract[message.chat.id] = {'type':1, 'msg':message.message_id}
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.message_handler(commands=['mailing'])
         async def mailing_start_choice(message):
             """
             Обработка команды /mailing - спросить, что делаем
             """
-            text, keyboard = await self._make_mailing_choice(message)
-            text += '\n\nЧто редактируем?'
-            await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            text, keyboard = await self._make_mailing_choice(message.chat.id)
+            if keyboard:
+                text += '\n\nЧто редактируем?'
+            try:
+                await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data == 'mailing_back')
         async def mailing_return_to_start_choice(call):
@@ -134,9 +174,14 @@ class TG_Sender:
             Обработка команды /mailing - вернуться к главному меню
             """
             message = call.message
-            text, keyboard = await self._make_mailing_choice(message)
-            text += '\n\nЧто редактируем?'
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            text, keyboard = await self._make_mailing_choice(message.chat.id)
+            if keyboard:
+                text += '\n\nЧто редактируем?'
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
             
         @self._bot.callback_query_handler(func=lambda call: call.data[:13] == 'mailing_turn_')
         async def mailing_turn(call):
@@ -146,12 +191,17 @@ class TG_Sender:
             message = call.message
             turn_to = True if call.data.endswith('_on') else False
             if await self._db_handler.set_user_mailing(message.chat.id, turn_to):
-                text, keyboard = await self._make_mailing_choice(message)
-                text += '\n\nЧто ещё изменить?'
+                text, keyboard = await self._make_mailing_choice(message.chat.id)
+                if keyboard:
+                    text += '\n\nЧто ещё изменить?'
             else:
                 text = Error
                 keyboard = None
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data[:13] == 'mailing_edit_')
         async def mailing_edit_choice(call):
@@ -160,7 +210,7 @@ class TG_Sender:
             """
             message = call.message
             text = message.text[:message.text.rindex('\n')]
-            text += f'\nРедактируем {"вечернюю" if call.data[13:] == "evening" else " утреннюю"} рассылку:'
+            text += f'\nРедактируем рассылку на {"следующий" if call.data[13:] == "evening" else " текущий"} день:'
             keyboard = InlineKeyboardMarkup(row_width=1)
             button_list = []
             user = await self._db_handler.get_user_info(message.chat.id)
@@ -174,7 +224,11 @@ class TG_Sender:
                                     callback_data=f'mailing_time_off_{call.data[13:]}'))
             button_list.append(InlineKeyboardButton(text="Назад",callback_data='mailing_back'))
             keyboard.add(*button_list)
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data[:16] == 'mailing_time_on_')
         async def mailing_time_change(call):
@@ -183,19 +237,22 @@ class TG_Sender:
             """
             message = call.message
             text = message.text[:message.text.rindex('\n')]
-            text += "\nПришли мне время "
-            text += "вечерней" if call.data[16:] == "evening" else " утренней"
-            text += " рассылки в твоём часовом поясе 24-часовом формате:"
+            text += "\nПришли мне время рассылки на "
+            text += "следующий" if call.data[16:] == "evening" else "текущий"
+            text += " день в твоём часовом поясе 24-часовом формате:"
             keyboard = InlineKeyboardMarkup(row_width=1)
-            button_c = InlineKeyboardButton(text="Отменить",callback_data='editing_cancel')
-            keyboard.add(button_c)
+            keyboard.add(InlineKeyboardButton(text="Отменить",callback_data='editing_cancel'))
             # Запомнить пользователя
             if call.data[16:] == "evening":
-                change_type = 3
+                change_type = 4
             else:
-                change_type = 2
+                change_type = 3
             self._user_inreract[message.chat.id] = {'type':change_type, 'msg':message.message_id}
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data[:17] == 'mailing_time_off_')
         async def mailing_off_change(call):
@@ -209,11 +266,17 @@ class TG_Sender:
             else:
                 edit_func = self._db_handler.set_user_morning
             if await edit_func(message.chat.id, None):
-                text, keyboard = await self._make_mailing_choice(message)
+                text, keyboard = await self._make_mailing_choice(message.chat.id)
+                if keyboard:
+                    text += '\n\nЧто ещё изменить?'
             else:
                 text = Error
                 keyboard = None
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id, reply_markup=keyboard)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.callback_query_handler(func=lambda call: call.data == 'editing_cancel')
         async def editing_cancel_edit(call):
@@ -221,13 +284,28 @@ class TG_Sender:
             Обработка команды /mailing и /timezone - ничего не менять
             """
             message = call.message
-            try:
+            if type(self._user_inreract.get(message.chat.id)) is dict:
+                inter_type = self._user_inreract[message.chat.id]['type']
                 self._user_inreract.pop(message.chat.id)
-            except KeyError:
-                pass
+            else: inter_type = None
             # Отредактировать сообщение - удалить часть с вопросом и кнопки
             text = message.text[:message.text.rindex('\n')]
-            await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id)
+            try:
+                await self._bot.edit_message_text(text, message.chat.id, message_id=message.message_id)
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
+            # При старте спросить про рассылку
+            if inter_type == 2:
+                text, keyboard = await self._make_mailing_choice(message.chat.id)
+                if keyboard:
+                    text = "Так же я могу делать рассылку с праздниками и приметами. " + text
+                    text += '\n\nХочешь что-нибудь получать?'
+                try:
+                    await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.message_handler()
         async def over_parse(message):
@@ -237,77 +315,139 @@ class TG_Sender:
             - Все остальные случаи
             """
             # Проверка на команду
-            if type(self._user_inreract.get(message.chat.id)) is dict:
+            user_id = message.chat.id
+            if type(self._user_inreract.get(user_id)) is dict:
                 # Проверка на команду /timezone - записать часовой пояс
-                if self._user_inreract[message.chat.id]['type'] == 1:
+                if self._user_inreract[user_id]['type'] in (1, 2):
                     # Распознать число со знаком и проврить вхождение в интервал
                     tz_num = self._parse_tz(message.text)
                     if tz_num is not None:
                         # Убрать кнопку отмены и очистить хранилище
-                        await self._bot.edit_message_reply_markup(message.chat.id,
-                                        self._user_inreract[message.chat.id]['msg'], None)
-                        self._user_inreract.pop(message.chat.id)
+                        try:
+                            await self._bot.edit_message_reply_markup(user_id,
+                                        self._user_inreract[user_id]['msg'], None)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                        inter_type = self._user_inreract[user_id]['type']
+                        self._user_inreract.pop(user_id)
                         # Привести ЧП к UTC из МСК и записать результаты в БД
                         timezone = tz_num + 3
-                        if await self._db_handler.set_user_timezone(message.chat.id, timezone):
-                            user = await self._db_handler.get_user_info(message.chat.id)
+                        res = await self._db_handler.set_user_timezone(user_id, timezone)
+                        if res:
+                            user = await self._db_handler.get_user_info(user_id)
                             text = 'Готово!\n\N{globe with meridians} Теперь твой ' 
                             text += self._make_timezone_info(user)
                         else:
                             text = Error
-                        await self._bot.send_message(message.chat.id, text)
+                        try:
+                            await self._bot.send_message(user_id, text)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                        # При старте спросить про рассылку
+                        if res and inter_type == 2:
+                            text, keyboard = await self._make_mailing_choice(user)
+                            if keyboard:
+                                text = "Так же я могу делать рассылку с праздниками и приметами. " + text
+                                text += '\n\nХочешь что-нибудь получать?'
+                            try:
+                                await self._bot.send_message(user_id, text, reply_markup=keyboard)
+                            except ApiTelegramException as e:
+                                self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
                     else:
                         text = "Часовой пояс должен быть целочисленным и в пределах от -15 до +9"
-                        await self._bot.send_message(message.chat.id, text)
+                        try:
+                            await self._bot.send_message(user_id, text)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
                 # Проверка на команду /mailing - записать время рассылки
-                elif self._user_inreract[message.chat.id]['type'] in (2, 3):
-                    time = self._parse_mailing_time(message.text, self._user_inreract[message.chat.id]['type'])
+                elif self._user_inreract[user_id]['type'] in (3, 4):
+                    time = self._parse_mailing_time(message.text)
                     if time is not None:
-                        await self._bot.edit_message_reply_markup(message.chat.id,
-                                        self._user_inreract[message.chat.id]['msg'], None)
-                        if self._user_inreract[message.chat.id]['type'] == 2:
+                        try:
+                            await self._bot.edit_message_reply_markup(user_id,
+                                        self._user_inreract[user_id]['msg'], None)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                        if self._user_inreract[user_id]['type'] == 3:
                             edit_func = self._db_handler.set_user_morning
                         else:
                             edit_func = self._db_handler.set_user_evening
-                        self._user_inreract.pop(message.chat.id)
+                        self._user_inreract.pop(user_id)
                         # Привести Время к UTC из ЧП пользователя
-                        user = await self._db_handler.get_user_info(message.chat.id)
-                        if user['timezone'] is None:
-                            timezone = 3
-                        else:
-                            timezone = user['timezone']
-                        time = time - timezone
+                        user = await self._db_handler.get_user_info(user_id)
+                        time = time - user['timezone']
                         # Записать результаты в БД
-                        if await edit_func(message.chat.id, time):
-                            text, keyboard = await self._make_mailing_choice(message)
-                            text += '\n\nЧто ещё изменить?'
+                        if await edit_func(user_id, time):
+                            text, keyboard = await self._make_mailing_choice(user_id)
+                            if keyboard:
+                                text += '\n\nЧто ещё изменить?'
                         else:
                             text = Error
                             keyboard = None
-                        await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
+                        try:
+                            await self._bot.send_message(user_id, text, reply_markup=keyboard)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
                     else:
-                        text = "Время {} рассылки должно быть целочисленным и в пределах от {} до {}"
-                        if self._user_inreract[message.chat.id]['type'] == 2:
-                            text = text.format('утренней', 0, 11)
-                        else:
-                            text = text.format('вечерней', 12, 23)
-                        await self._bot.send_message(message.chat.id, text)
+                        text = "Время рассылки должно быть целочисленным и в пределах от 0 до 23"
+                        try:
+                            await self._bot.send_message(user_id, text)
+                        except ApiTelegramException as e:
+                            self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
+                                            f'\t"{e}" on {e.__traceback__.tb_lineno}')
             # Все остальные случаи
             else:
                 text = "Извини, я пока могу реагировать только на определённые команды. "\
                 "Посмотри их в Меню."
-                await self._bot.reply_to(message, text)
+                try:
+                    await self._bot.reply_to(message, text)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
     def poll(self):
+        """
+        Вернуть асинхронную функцию бесконечного опроса бота
+        """
         return self._bot.polling()
 
-    async def _make_mailing_choice(self, message):
+    async def slovo_send_by_mailing(self, user, day_type):
+            """
+            Отправить сообщение с рассылкой
+            """
+            if day_type == Days.TODAY:
+                text_func = self._ms_producer.make_holy
+                day = "today"
+            elif day_type == Days.TOMMOROW:
+                text_func = self._ms_producer.make_sign
+                day = "tomorrow"
+            else:
+                self._logger.debug(f'Wrong day_type {day} in mailing of user {user['id']}')
+                return
+            # Получаем Слово на день
+            text = await text_func(user, day_type)
+            parse = 'Markdown'
+            # Отправить сообщение
+            try:
+                await self._bot.send_message(user['id'], text, parse_mode=parse)
+                self._logger.debug(f'Send Slovo in {day} mailing of user {user['id']}')
+            except ApiTelegramException as e:
+                self._logger.warning(f'Exception in Telegram API with {user['id']}\n'\
+                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
+
+    async def _make_mailing_choice(self, user_id):
             """
             Обработка команды /mailing - собрать главное меню для отображения
             """
             text: str
             keyboard = None
-            if user := await self._db_handler.get_user_info(message.chat.id):
+            if user := await self._db_handler.get_user_info(user_id):
                 text = 'Рассылка осуществляется дважды в сутки: я передаю информацию о '\
                 'церковных праздниках на текущий день и приметы на следующий день.\n\n'
                 text += '\N{globe with meridians} Сейчас твой ' + self._make_timezone_info(user) + '\n'
@@ -338,17 +478,16 @@ class TG_Sender:
             text += "Рассылка отключена."
         else:
             tz = user['timezone']
-            if tz is None: tz = 3
             text += "Рассылка включена;\n\N{calendar} Рассылка на сегодня "
             if user['morning'] is not None:
                 time = user['morning'] + tz
-                text += f'в {time} час{Hours_ending.get(time,"ов")};'
+                text += f'в {time} час{self._hours_ending(time)};'
             else:
                 text += 'не назначена;'
-            text += '\n\N{Chart With Upwards Trend} Рассылка на завтра'
+            text += '\n\N{Chart With Upwards Trend} Рассылка на завтра '
             if user['evening'] is not None:
                 time = user['evening'] + tz
-                text += f'в {time} час{Hours_ending.get(time,"ов")}; '
+                text += f'в {time} час{self._hours_ending(time)}; '
             else:
                 text += 'не назначена.'
         return text
@@ -359,16 +498,13 @@ class TG_Sender:
         """
         text = 'часовой пояс '
         # Часовой пояс к МСК
-        if user['timezone'] is None:
-            text += "не определён (используется МСК)."
-        else:
-            timezone = user['timezone'] - 3
-            text += "- МСК"
-            if timezone < 0:
-                text += f'{timezone}'
-            elif timezone > 0:
-                text += f'+{timezone}'
-            text += "."
+        timezone = user['timezone'] - 3
+        text += "- МСК"
+        if timezone < 0:
+            text += f'{timezone}'
+        elif timezone > 0:
+            text += f'+{timezone}'
+        text += "."
         return text
 
     def _parse_tz(self, tz_str: str) -> int:
@@ -388,7 +524,7 @@ class TG_Sender:
             return None
         return tz_num
 
-    def _parse_mailing_time(self, time_str: str, mailing_type: int) -> int:
+    def _parse_mailing_time(self, time_str: str) -> int:
         """
         Распознать записать время рассылки и проверить вхождение в интервал
         """
@@ -397,12 +533,11 @@ class TG_Sender:
             time_num = int(time_str)
         else:
             return None
-        if mailing_type == 2:
-            time_range = range(0, 12)
-        elif mailing_type == 3:
-            time_range = range(12, 24)
-        else:
-            return None
-        if time_num not in time_range:
+        if time_num not in range(0, 24):
             return None
         return time_num
+
+    def _hours_ending(self, hour):
+        if hour == 1: return ''
+        elif hour in range(2, 4): return  'а'
+        else: return  'ов'

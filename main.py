@@ -1,26 +1,43 @@
-"""
-Заполняем таблицу пользователей;
-Создаём таймеры для оповещений;
-Формируем сообщения и передаём на рассылку;
-"""
+# TODO
+# Работа с группами
+# Меню админа - статистика
+# Обновление
+# Кэш в ms.py
 
-import asyncio
-import logging
-import os
-import sys
+import asyncio, signal, logging, os, sys
+from datetime import datetime, timezone
 
 from ms import MS_producer
 from db import Days_DB_handler, User_DB_handler
 from tg import TG_Sender
-from utils import InitError
+from utils import InitError, Days
 
 DB_MS_FILE_NAME     = 'mesyaceslov.db'
 DB_USER_FILE_NAME   = 'users.db'
 LOG_FILE_NAME       = 'log'
-TG_TOKEN_ENV_NAME   =  'TG_MS_TOKEN'
+TG_TOKEN_ENV_NAME   = 'TG_MS_TOKEN'
 
-# TODO
-# Кеш в ms.py
+async def check_mailing(users_db, tg_handler):
+    cur_hour = datetime.now(timezone.utc).hour
+    while True:
+        await asyncio.sleep(1)
+        new_hour = datetime.now(timezone.utc).hour
+        if new_hour != cur_hour:
+            cur_hour = new_hour
+            # Рассылка на сегодня
+            users = await users_db.get_today_mailing_users(cur_hour)
+            mailing_tasks = [
+                tg_handler.slovo_send_by_mailing(user, Days.TODAY)
+                for user in users
+            ]
+            await asyncio.gather(*mailing_tasks)
+            # Рассылка на завтра
+            users = await users_db.get_tomorrow_mailing_users(cur_hour)
+            mailing_tasks = [
+                tg_handler.slovo_send_by_mailing(user, Days.TOMMOROW)
+                for user in users
+            ]
+            await asyncio.gather(*mailing_tasks)
 
 async def main(verbose: bool = False):
     # Проверить входщие данные
@@ -48,7 +65,10 @@ async def main(verbose: bool = False):
         ms = MS_producer(db_handler=d_db, logger=logger)
         tg = TG_Sender(token=tg_token, db_handler=u_db, ms_producer=ms, logger=logger)
         # Запустить ботов
-        await tg.poll()
+        try:
+            await asyncio.gather(tg.poll(), check_mailing(u_db, tg))
+        except (KeyboardInterrupt, SystemExit, asyncio.exceptions.CancelledError):
+            pass
     logger.debug('Stop Mesyaceslov bot')
 
 if __name__ == "__main__":
