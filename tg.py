@@ -64,10 +64,11 @@ class TG_Sender:
             Обработка команд /today, /tomorrow, /yesterday - показать кнопки
             """
             text = "Что бы ты хотел узнать?"
+            cmd = message.text.split('@')[0]
             # Назначаем кнопки
             keyboard = InlineKeyboardMarkup(row_width=1)
-            button_sing = InlineKeyboardButton(text="Приметы", callback_data=f'sign_{message.text[1:]}')
-            button_holy = InlineKeyboardButton(text="Поминаемые святые", callback_data=f'holy_{message.text[1:]}')
+            button_sing = InlineKeyboardButton(text="Приметы", callback_data=f'sign_{cmd[1:]}')
+            button_holy = InlineKeyboardButton(text="Поминаемые святые", callback_data=f'holy_{cmd[1:]}')
             keyboard.add(button_sing, button_holy)
             try:
                 await self._bot.send_message(message.chat.id, text, reply_markup=keyboard)
@@ -336,7 +337,7 @@ class TG_Sender:
                         res = await self._db_handler.set_user_timezone(user_id, timezone)
                         if res:
                             user = await self._db_handler.get_user_info(user_id)
-                            text = 'Готово!\n\N{globe with meridians} Теперь твой ' 
+                            text = 'Готово!\n\n\N{globe with meridians} Теперь твой ' 
                             text += self._make_timezone_info(user)
                         else:
                             text = Error
