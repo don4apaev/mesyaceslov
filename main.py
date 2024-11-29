@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from ms import MS_producer
 from db import Days_DB_handler, User_DB_handler
 from tg import TG_Sender
-from utils import InitError, Days
+from utils import InitError, Days, BotType
 
 DB_MS_FILE_NAME     = 'mesyaceslov.db'
 DB_USER_FILE_NAME   = 'users.db'
@@ -23,15 +23,15 @@ async def check_mailing(users_db, tg_handler):
         new_hour = datetime.now(timezone.utc).hour
         if new_hour != cur_hour:
             cur_hour = new_hour
-            # Рассылка на сегодня
-            users = await users_db.get_today_mailing_users(cur_hour)
+            # Рассылка на сегодня для ТГ
+            users = await users_db.get_today_mailing_users(BotType.TG.value, cur_hour)
             mailing_tasks = [
                 tg_handler.slovo_send_by_mailing(user, Days.TODAY)
                 for user in users
             ]
             await asyncio.gather(*mailing_tasks)
-            # Рассылка на завтра
-            users = await users_db.get_tomorrow_mailing_users(cur_hour)
+            # Рассылка на завтра для ТГ
+            users = await users_db.get_tomorrow_mailing_users(BotType.TG.value, cur_hour)
             mailing_tasks = [
                 tg_handler.slovo_send_by_mailing(user, Days.TOMMOROW)
                 for user in users

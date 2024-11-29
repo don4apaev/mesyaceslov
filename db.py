@@ -23,77 +23,78 @@ class DB_handler:
         await self.db.close()
 
 class User_DB_handler(DB_handler):
-    async def add_user(self, user_id: int) -> bool:
+    async def add_user(self, user_id: int, bot_type: int) -> bool:
         async with self.lock:
             try:
-                sql_req = 'SELECT * FROM users WHERE id=?'
-                cursor = await self.db.execute(sql_req, (user_id,))
+                sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
+                cursor = await self.db.execute(sql_req, (user_id, bot_type))
                 user = await cursor.fetchone()
                 if user:
-                    self._logger.debug(f'Try to add already existin user {user_id}')
+                    self._logger.debug(f'Try to add already existin user {user_id} in {bot_type}')
                     return False
-                sql_req = 'INSERT INTO users (id, admin, mailing, timezone, morning, evening) '\
-                        'VALUES (?, ?, ?, ?, ?, ?)'
-                cursor = await self.db.execute(sql_req, (user_id, False, None, 3, None, None))
+                sql_req = 'INSERT INTO users (id, type, admin, mailing, timezone, today, tomorrow) '\
+                        'VALUES (?, ?, ?, ?, ?, ?, ?)'
+                cursor = await self.db.execute(sql_req, (user_id, bot_type, False, None, 3, None, None))
                 await self.db.commit()
             except Exception as e:
-                self._logger.error(f'Some exception while adding user {user_id}\n'\
+                self._logger.error(f'Some exception while adding user {user_id} in {bot_type}\n'\
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
                 return False
             else:
-                self._logger.debug(f'New user {user_id} addded to DB')
+                self._logger.debug(f'New user {user_id} in {bot_type} addded to DB')
                 return True
 
 
-    async def get_user_info(self, user_id: int) -> dict:
+    async def get_user_info(self, user_id: int, bot_type: int) -> dict:
         async with self.lock:
             try:
-                sql_req = 'SELECT * FROM users WHERE id=?'
-                async with self.db.execute(sql_req, (user_id,)) as cursor:
+                sql_req = 'SELECT id, admin, mailing, timezone, today, tomorrow '\
+                            'FROM users WHERE id=? AND type=?'
+                async with self.db.execute(sql_req, (user_id, bot_type)) as cursor:
                     user = await cursor.fetchone()
                     if not user:
                         return None
-                    keys = ('id', 'admin', 'mailing', 'timezone', 'morning', 'evening')
+                    keys = ('id', 'admin', 'mailing', 'timezone', 'today', 'tomorrow')
                     return dict(zip(keys, user))
             except Exception as e:
-                self._logger.error(f'Some exception while get user {user_id} info\n'\
+                self._logger.error(f'Some exception while get user {user_id} in {bot_type} info\n'\
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
                 return None
 
-    async def _set_user_field(self, user_id: int, field_name: str, field_value: Any) -> bool:
+    async def _set_user_field(self, user_id: int, bot_type: int, field_name: str, field_value: Any) -> bool:
         async with self.lock:
             try:
-                sql_req = 'SELECT * FROM users WHERE id=?'
-                cursor = await self.db.execute(sql_req, (user_id,))
+                sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
+                cursor = await self.db.execute(sql_req, (user_id, bot_type))
                 user = await cursor.fetchone()
                 if not user:
-                    self._logger.error(f'No user {user_id} in DB')
+                    self._logger.error(f'No user {user_id} in {bot_type} in DB')
                     return False
-                sql_req = f"UPDATE users SET {field_name} = ? WHERE id=?"
-                await self.db.execute(sql_req, (field_value, user_id))
+                sql_req = f"UPDATE users SET {field_name} = ? WHERE id=? AND type=?"
+                await self.db.execute(sql_req, (field_value, user_id, bot_type))
                 await self.db.commit()
             except Exception as e:
-                self._logger.error(f'Some exception while update user {user_id} {field_value} data\n'\
-                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+                self._logger.error(f'Some exception while update user {user_id} in {bot_type} with '\
+                                    f'{field_value} data\n\t"{e}" on {e.__traceback__.tb_lineno}')
                 return False
             else:
                 self._logger.debug(f'Update user {user_id} {field_name} to {field_value}')
                 return True
 
-    async def set_user_mailing(self, user_id: int, mailing: bool) -> bool:
-        return await self._set_user_field(user_id, 'mailing', mailing)
-    async def set_user_timezone(self, user_id: int, timezone: int) -> bool:
-        return await self._set_user_field(user_id, 'timezone', timezone)
-    async def set_user_morning(self, user_id: int, morning: int) -> bool:
-        return await self._set_user_field(user_id, 'morning', morning)
-    async def set_user_evening(self, user_id: int, evening: int) -> bool:
-        return await self._set_user_field(user_id, 'evening', evening)
+    async def set_user_mailing(self, user_id: int, bot_type: int, mailing: bool) -> bool:
+        return await self._set_user_field(user_id, bot_type, 'mailing', mailing)
+    async def set_user_timezone(self, user_id: int, bot_type: int, timezone: int) -> bool:
+        return await self._set_user_field(user_id, bot_type, 'timezone', timezone)
+    async def set_user_today_time(self, user_id: int, bot_type: int, today_time: int) -> bool:
+        return await self._set_user_field(user_id, bot_type, 'today', today_time)
+    async def set_user_tomorrow_time(self, user_id: int, bot_type: int, tomorrow_time: int) -> bool:
+        return await self._set_user_field(user_id, bot_type, 'tomorrow', tomorrow_time)
 
-    async def _get_mailing_users(self, mailing_type, hour_utc):
+    async def _get_mailing_users(self, bot_type: int, mailing_type: str, hour_utc: int):
         async with self.lock:
             try:
-                sql_req = f'SELECT id, timezone FROM users WHERE mailing=? AND {mailing_type}=?'
-                async with self.db.execute(sql_req, (True, hour_utc)) as cursor:
+                sql_req = f'SELECT id, timezone FROM users WHERE type=? AND mailing=? AND {mailing_type}=?'
+                async with self.db.execute(sql_req, (bot_type, True, hour_utc)) as cursor:
                     users = await cursor.fetchall()
                     if len(users) == 0:
                         return tuple()
@@ -104,20 +105,20 @@ class User_DB_handler(DB_handler):
                                     f'\t"{e}" on {e.__traceback__.tb_lineno}')
                 return tuple()
 
-    async def get_today_mailing_users(self, hour_utc):
-        return await self._get_mailing_users('morning', hour_utc)
-    async def get_tomorrow_mailing_users(self, hour_utc):
-        return await self._get_mailing_users('evening', hour_utc)
+    async def get_today_mailing_users(self, bot_type: int, hour_utc: int):
+        return await self._get_mailing_users('today', hour_utc)
+    async def get_tomorrow_mailing_users(self, bot_type: int, hour_utc: int):
+        return await self._get_mailing_users('tomorrow', hour_utc)
 
-    async def get_users(self) -> list:
+    async def get_users(self, bot_type: int) -> list:
         async with self.lock:
             try:
-                sql_req = 'SELECT id, mailing, timezone, morning, evening FROM users'
-                async with self.db.execute(sql_req) as cursor:
+                sql_req = 'SELECT id, mailing, timezone, today, tomorrow FROM users WHERE type=?'
+                async with self.db.execute(sql_req, (bot_type,)) as cursor:
                     users = await cursor.fetchall()
                     if len(users) == 0:
                         return tuple()
-                    keys = ('id', 'mailing', 'timezone', 'morning', 'evening')
+                    keys = ('id', 'mailing', 'timezone', 'today', 'tomorrow')
                     return tuple(dict(zip(keys, user)) for user in users)
             except Exception as e:
                 self._logger.error(f'Some exception while get users info\n'\

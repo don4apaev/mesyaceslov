@@ -10,6 +10,10 @@ class Days(Enum):
     TOMMOROW = 1
     ERROR = 2
 
+class BotType(Enum):
+    TG = 1
+    VK = 2
+
 class MesyaceslovError(Exception):
     pass
 
