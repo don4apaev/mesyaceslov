@@ -1,6 +1,6 @@
 # TODO
 # Меню админа - статистика
-# Обновление
+# Обновление + 4 дня вне года
 # Кэш в ms.py
 
 import asyncio, signal, logging, os, sys

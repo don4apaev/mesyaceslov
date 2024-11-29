@@ -150,7 +150,7 @@ class MS_producer:
             self._logger.error(f'Error while convert number to cirillic: {e}')
             return Error
         slovo += f'*{ciril_day}* ({old_date.day}) *{Mesyacy[old_date.month]} {ciril_creation_year}* '\
-                    f'({creation_year}) *год* по старому стилю.'
+                    f'({creation_year}) *года от сотворения мира * по старому стилю.'
         # Заполняем пост
         if fasting := Posty.get(fasting) :
             slovo += f' {fasting}.'
