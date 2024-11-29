@@ -465,8 +465,8 @@ class TG_Sender:
                         except ApiTelegramException as e:
                             self._logger.warning(f'Exception in Telegram API with {user_id}\n'\
                                             f'\t"{e}" on {e.__traceback__.tb_lineno}')
-            # Все остальные случаи
-            else:
+            # Все остальные случаи в личных чатах (не группах)
+            elif user_id > 0:
                 text = Unknown
                 try:
                     await self._bot.reply_to(message, text)
