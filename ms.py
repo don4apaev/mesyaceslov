@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 from utils import ZeroInDate, Days
 
 Cyril_numbers = {
+    0: '',
     1: 'а',
     2: 'в',
     3: 'г',
     4: 'д',
-    5: 'е',
+    5: 'є',
     6: 'ѕ',
     7: 'з',
     8: 'ѳ',
@@ -16,6 +17,21 @@ Cyril_numbers = {
     10: 'і',
     20: 'к',
     30: 'л',
+    40: 'м',
+    50: 'н',
+    60: 'ѯ',
+    70: 'ѻ',
+    80: 'п',
+    90: 'ч',
+    100: 'р',
+    200: 'с',
+    300: 'т',
+    400: 'у',
+    500: 'ф',
+    600: 'х',
+    700: 'ѱ',
+    800: 'ѡ',
+    900: 'ц',
 }
 
 Mesyacy = {
@@ -66,20 +82,32 @@ class MS_producer:
         self._logger = logger
 
     def _arab_to_cyril(self, number: int) -> str:
+        # Проверяем на допустимость
+        if number < 1:
+            raise ZeroInDate('Zero or negative number')
+        if number > 999999:
+            raise ZeroInDate('Number is too large')
+        # Разбиваем на цифры
         cyr_number = ''
-        dec = number//10
-        un = number%10
-        if un == 0:
-            if dec == 0:
-                raise ZeroInDate
-            cyr_number = f'{Cyril_numbers[dec*10]}{u'\u0483'}'
+        num_tuple = []
+        while number:
+            num_tuple.append(number % 10)
+            number = number // 10
+        # Обрабатываем всё, что меньше 1000
+        mult = 1
+        for digit in num_tuple[:3]:
+            cyr_number = Cyril_numbers[digit * mult] + cyr_number
+            mult *= 10
+        # Обрабатываем всё, что осталось
+        mult = 1
+        for digit in num_tuple[3:]:
+            cyr_number = '҂' + Cyril_numbers[digit * mult] + cyr_number
+            mult *= 10
+        # Добавляем титло
+        if len(cyr_number) > 1:
+            cyr_number = cyr_number[:-1] + u'\u0483' + cyr_number[-1:] + '.'
         else:
-            if dec == 1:
-                cyr_number = f'{Cyril_numbers[un]}{u'\u0483'}{Cyril_numbers[dec*10]}'
-            elif dec > 1:
-                cyr_number = f'{Cyril_numbers[dec*10]}{u'\u0483'}{Cyril_numbers[un]}'
-            else:
-                cyr_number = f'{Cyril_numbers[un]}{u'\u0483'}'
+            cyr_number = cyr_number + u'\u0483' + '.'
         return cyr_number
 
     def _creation_year(self, date) -> int:
@@ -105,15 +133,24 @@ class MS_producer:
             return Error
         # Получаем данные о дне из БД
         if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+            self._logger.error(f'Can\'t find day info for {date.day}.{date.month}')
             return Error
         name, work, fasting, crowning, holy = day_info
         # Получаем поминаемых святых и иконы  из БД
         if ( saints_list := await self._db_handler.get_saints(date) ) is None:
+            self._logger.error(f'Can\'t find saits info for {date.day}.{date.month}')
             return Error
         # Заполняем дату
-        # old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
-        slovo += f'*{self._arab_to_cyril(date.day)} {Mesyacy[date.month]} '\
-                    f'{self._creation_year(date)} г.* от сотворения мира.'
+        old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
+        try:
+            ciril_day = self._arab_to_cyril(old_date.day)
+            creation_year = self._creation_year(date)
+            ciril_creation_year = self._arab_to_cyril(creation_year)
+        except ZeroInDate as e:
+            self._logger.error(f'Error while convert number to cirillic: {e}')
+            return Error
+        slovo += f'*{ciril_day}* ({old_date.day}) *{Mesyacy[old_date.month]} {ciril_creation_year}* '\
+                    f'({creation_year}) *год* по старому стилю.'
         # Заполняем пост
         if fasting := Posty.get(fasting) :
             slovo += f' {fasting}.'
@@ -159,6 +196,7 @@ class MS_producer:
             return Error
         # Получаем данные о дне из БД
         if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+            self._logger.error(f'Can\'t find day info for {date.day}.{date.month}')
             return Error
         name, work, fasting, crowning, _ = day_info
         # Заполняем название
