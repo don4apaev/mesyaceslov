@@ -2,6 +2,8 @@
 # Меню админа - статистика
 # Обновление + 4 дня вне года
 # Кэш в ms.py
+# Поиск именин
+# подробная информация о святом
 
 import asyncio, signal, logging, os, sys
 from datetime import datetime, timezone

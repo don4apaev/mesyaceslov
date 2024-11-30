@@ -101,24 +101,27 @@ class TG_Sender:
             """
             Статистика по боту
             """
-            text = Unknown
-            if user := await self._db_handler.get_user_info(message.chat.id, self._db_type):
-                if user['admin'] == True:
-                    all_users = await self._db_handler.get_users(self._db_type)
-                    p_count, g_count = [0,0], [0,0]
-                    for u in all_users:
-                        if u['id'] > 0: counter = p_count
-                        else:           counter = g_count
-                        counter[0] += 1
-                        if u['mailing']:
-                            counter[1] += 1
-                    text = f"Всего {p_count[0]} пользоватлей, из них {p_count[1]} пользуется рассылкой.\n"\
-                            f"Всего {g_count[0]} групп, из них {g_count[1]} с включённой рассылкой."
-            try:
-                await self._bot.reply_to(message, text)
-            except ApiTelegramException as e:
-                self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
-                                f'\t"{e}" on {e.__traceback__.tb_lineno}')
+            # отвечать только в личныхсообщениях...
+            if message.chat.id > 0:
+                text = Unknown
+                # ... и только если пользователь существует и администратор
+                if user := await self._db_handler.get_user_info(message.chat.id, self._db_type):
+                    if user['admin'] == True:
+                        all_users = await self._db_handler.get_users(self._db_type)
+                        p_count, g_count = [0,0], [0,0]
+                        for u in all_users:
+                            if u['id'] > 0: counter = p_count
+                            else:           counter = g_count
+                            counter[0] += 1
+                            if u['mailing']:
+                                counter[1] += 1
+                        text = f"Всего {p_count[0]} пользоватлей, из них {p_count[1]} пользуется рассылкой.\n"\
+                                f"Всего {g_count[0]} групп, из них {g_count[1]} с включённой рассылкой."
+                try:
+                    await self._bot.reply_to(message, text)
+                except ApiTelegramException as e:
+                    self._logger.warning(f'Exception in Telegram API with {message.chat.id}\n'\
+                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
 
         @self._bot.message_handler(commands=[CMD_TODAY, CMD_TOMORROW, CMD_YESTERDAY])
         async def slovo_reply_commands(message):
