@@ -11,8 +11,8 @@ class Days(Enum):
     ERROR = 2
 
 class BotType(Enum):
+    VK = 0
     TG = 1
-    VK = 2
 
 class MesyaceslovError(Exception):
     pass

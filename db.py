@@ -106,9 +106,9 @@ class User_DB_handler(DB_handler):
                 return tuple()
 
     async def get_today_mailing_users(self, bot_type: int, hour_utc: int):
-        return await self._get_mailing_users('today', hour_utc)
+        return await self._get_mailing_users(bot_type,'today', hour_utc)
     async def get_tomorrow_mailing_users(self, bot_type: int, hour_utc: int):
-        return await self._get_mailing_users('tomorrow', hour_utc)
+        return await self._get_mailing_users(bot_type,'tomorrow', hour_utc)
 
     async def get_users(self, bot_type: int) -> list:
         async with self.lock:
