@@ -121,25 +121,22 @@ class MS_producer:
         slovo: str
         # Формируем дату
         date = datetime.now(timezone(timedelta(hours=user['timezone']))).date()
-        if day == Days.TODAY:
-            slovo = 'Сегодня '
+        if day == Days.YESTERDAY:
+            slovo = 'Вчера было '
+            date = date - timedelta(days=1)
         elif day == Days.TOMMOROW:
             slovo = 'Завтра '
             date = date + timedelta(days=1)
-        elif day == Days.YESTERDAY:
-            slovo = 'Вчера было '
-            date = date - timedelta(days=1)
-        else:
-            return Error
+        else: #Days.TODAY
+            slovo = 'Сегодня '
         # Получаем данные о дне из БД
-        if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+        if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f'Can\'t find day info for {date.day}.{date.month}')
             return Error
         name, work, fasting, crowning, holy = day_info
         # Получаем поминаемых святых и иконы  из БД
-        if ( saints_list := await self._db_handler.get_saints(date) ) is None:
+        if len(saints_list := await self._db_handler.get_saints(date)) == 0:
             self._logger.error(f'Can\'t find saits info for {date.day}.{date.month}')
-            return Error
         # Заполняем дату
         old_date = date - timedelta(days=(date.year//100 - date.year//400 - 2))
         try:
@@ -157,7 +154,7 @@ class MS_producer:
         slovo += '\n'
         # Заполняем Великие праздники
         if holy:
-            name, sign, _, _ = get_saint(holy)
+            name, sign, _, _ = await self._db_handler.get_saint(holy)
             slovo += f'\nВеликий праздник - {Znaki[sign]} {name}!\n'
         # Отделяем дни поминования от икон
         saint_slovo = ''
@@ -195,7 +192,7 @@ class MS_producer:
         else:
             return Error
         # Получаем данные о дне из БД
-        if ( day_info := await self._db_handler.get_day_values(date) ) is None:
+        if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f'Can\'t find day info for {date.day}.{date.month}')
             return Error
         name, work, fasting, crowning, _ = day_info

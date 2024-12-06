@@ -25,61 +25,43 @@ class DB_handler:
 class User_DB_handler(DB_handler):
     async def add_user(self, user_id: int, bot_type: int) -> bool:
         async with self.lock:
-            try:
-                sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
-                cursor = await self.db.execute(sql_req, (user_id, bot_type))
-                user = await cursor.fetchone()
-                if user:
-                    self._logger.debug(f'Try to add already existin user {user_id} in {bot_type}')
-                    return False
-                sql_req = 'INSERT INTO users (id, type, admin, mailing, timezone, today, tomorrow) '\
-                        'VALUES (?, ?, ?, ?, ?, ?, ?)'
-                cursor = await self.db.execute(sql_req, (user_id, bot_type, False, None, 3, None, None))
-                await self.db.commit()
-            except Exception as e:
-                self._logger.error(f'Some exception while adding user {user_id} in {bot_type}\n'\
-                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
+            sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
+            cursor = await self.db.execute(sql_req, (user_id, bot_type))
+            user = await cursor.fetchone()
+            if user:
+                self._logger.debug(f'Try to add already existin user {user_id} in {bot_type}')
                 return False
-            else:
-                self._logger.debug(f'New user {user_id} in {bot_type} addded to DB')
-                return True
+            sql_req = 'INSERT INTO users (id, type, admin, mailing, timezone, today, tomorrow) '\
+                    'VALUES (?, ?, ?, ?, ?, ?, ?)'
+            cursor = await self.db.execute(sql_req, (user_id, bot_type, False, None, 3, None, None))
+            await self.db.commit()
+            self._logger.debug(f'New user {user_id} in {bot_type} addded to DB')
+            return True
 
 
     async def get_user_info(self, user_id: int, bot_type: int) -> dict:
         async with self.lock:
-            try:
-                sql_req = 'SELECT id, admin, mailing, timezone, today, tomorrow '\
-                            'FROM users WHERE id=? AND type=?'
-                async with self.db.execute(sql_req, (user_id, bot_type)) as cursor:
-                    user = await cursor.fetchone()
-                    if not user:
-                        return None
-                    keys = ('id', 'admin', 'mailing', 'timezone', 'today', 'tomorrow')
-                    return dict(zip(keys, user))
-            except Exception as e:
-                self._logger.error(f'Some exception while get user {user_id} in {bot_type} info\n'\
-                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
-                return None
+            keys = ('id', 'admin', 'mailing', 'timezone', 'today', 'tomorrow')
+            sql_req = f'SELECT {','.join(keys)} FROM users WHERE id=? AND type=?'
+            async with self.db.execute(sql_req, (user_id, bot_type)) as cursor:
+                user = await cursor.fetchone()
+                if not user:
+                    return None
+                return dict(zip(keys, user))
 
     async def _set_user_field(self, user_id: int, bot_type: int, field_name: str, field_value: Any) -> bool:
         async with self.lock:
-            try:
-                sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
-                cursor = await self.db.execute(sql_req, (user_id, bot_type))
-                user = await cursor.fetchone()
-                if not user:
-                    self._logger.error(f'No user {user_id} in {bot_type} in DB')
-                    return False
-                sql_req = f"UPDATE users SET {field_name} = ? WHERE id=? AND type=?"
-                await self.db.execute(sql_req, (field_value, user_id, bot_type))
-                await self.db.commit()
-            except Exception as e:
-                self._logger.error(f'Some exception while update user {user_id} in {bot_type} with '\
-                                    f'{field_value} data\n\t"{e}" on {e.__traceback__.tb_lineno}')
+            sql_req = 'SELECT * FROM users WHERE id=? AND type=?'
+            cursor = await self.db.execute(sql_req, (user_id, bot_type))
+            user = await cursor.fetchone()
+            if not user:
+                self._logger.error(f'No user {user_id} in {bot_type} in DB')
                 return False
-            else:
-                self._logger.debug(f'Update user {user_id} {field_name} to {field_value}')
-                return True
+            sql_req = f"UPDATE users SET {field_name} = ? WHERE id=? AND type=?"
+            await self.db.execute(sql_req, (field_value, user_id, bot_type))
+            await self.db.commit()
+            self._logger.debug(f'Update user {user_id} in {bot_type} {field_name} to {field_value}')
+            return True
 
     async def set_user_mailing(self, user_id: int, bot_type: int, mailing: bool) -> bool:
         return await self._set_user_field(user_id, bot_type, 'mailing', mailing)
@@ -92,18 +74,14 @@ class User_DB_handler(DB_handler):
 
     async def _get_mailing_users(self, bot_type: int, mailing_type: str, hour_utc: int):
         async with self.lock:
-            try:
-                sql_req = f'SELECT id, timezone FROM users WHERE type=? AND mailing=? AND {mailing_type}=?'
-                async with self.db.execute(sql_req, (bot_type, True, hour_utc)) as cursor:
-                    users = await cursor.fetchall()
-                    if len(users) == 0:
-                        return tuple()
-                    keys = ('id', 'timezone',)
-                    return tuple(dict(zip(keys, user)) for user in users)
-            except Exception as e:
-                self._logger.error(f'Some exception while get users mailing info\n'\
-                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
-                return tuple()
+            keys = ('id', 'timezone',)
+            sql_req = f'SELECT {','.join(keys)} FROM users '\
+                    f'WHERE type=? AND mailing=? AND {mailing_type}=?'
+            async with self.db.execute(sql_req, (bot_type, True, hour_utc)) as cursor:
+                users = await cursor.fetchall()
+                if len(users) == 0:
+                    return tuple()
+                return tuple(dict(zip(keys, user)) for user in users)
 
     async def get_today_mailing_users(self, bot_type: int, hour_utc: int):
         return await self._get_mailing_users(bot_type,'today', hour_utc)
@@ -112,18 +90,13 @@ class User_DB_handler(DB_handler):
 
     async def get_users(self, bot_type: int) -> list:
         async with self.lock:
-            try:
-                sql_req = 'SELECT id, mailing, timezone, today, tomorrow FROM users WHERE type=?'
-                async with self.db.execute(sql_req, (bot_type,)) as cursor:
-                    users = await cursor.fetchall()
-                    if len(users) == 0:
-                        return tuple()
-                    keys = ('id', 'mailing', 'timezone', 'today', 'tomorrow')
-                    return tuple(dict(zip(keys, user)) for user in users)
-            except Exception as e:
-                self._logger.error(f'Some exception while get users info\n'\
-                                    f'\t"{e}" on {e.__traceback__.tb_lineno}')
-                return tuple()
+            keys = ('id', 'mailing', 'timezone', 'today', 'tomorrow')
+            sql_req = f'SELECT {','.join(keys)} FROM users WHERE type=?'
+            async with self.db.execute(sql_req, (bot_type,)) as cursor:
+                users = await cursor.fetchall()
+                if len(users) == 0:
+                    return tuple()
+                return tuple(dict(zip(keys, user)) for user in users)
 
 class Days_DB_handler(DB_handler):
     async def fill_daytable(self):
@@ -197,8 +170,6 @@ class Days_DB_handler(DB_handler):
                         'WHERE month=? AND day=?'
             async with self.db.execute(sql_req, (day_date.month, day_date.day)) as cursor:
                 day = await cursor.fetchone()
-                if not day:
-                    return None
                 return tuple(day)
         except Exception as e:
             self._logger.error(f'Some exception while get {day_date} info from days_os\n'\
@@ -210,23 +181,19 @@ class Days_DB_handler(DB_handler):
             sql_req = 'SELECT id, name, sign FROM saints WHERE month=? AND day=?'
             async with self.db.execute(sql_req, (day_date.month, day_date.day)) as cursor:
                 saints = await cursor.fetchall()
-                if len(saints) == 0:
-                    return None
                 return tuple(tuple(saint) for saint in saints)
         except Exception as e:
             self._logger.error(f'Some exception while get {day_date} info from saints\n'\
                                 f'\t"{e}" on {e.__traceback__.tb_lineno}')
-            return None
+            return tuple()
 
     async def get_saint(self, saint_id: int) -> tuple:
         try:
             sql_req = 'SELECT name, sign, month, day FROM saints WHERE id=?'
             async with self.db.execute(sql_req, (saint_id,)) as cursor:
-                saint = cursor.fetchall()
-                if not saint:
-                    return None
+                saint = await cursor.fetchone()
                 return tuple(saint)
         except Exception as e:
             self._logger.error(f'Some exception while get saint {saint_id} info from saints\n'\
                                 f'\t"{e}" on {e.__traceback__.tb_lineno}')
-            return None
+            return tuple()
