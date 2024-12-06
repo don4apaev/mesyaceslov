@@ -91,8 +91,8 @@ class VK_Sender(B.Bot_Sender):
                     all_users = await self._db_handler.get_users(self._db_type)
                     p_count, g_count = [0,0], [0,0]
                     for u in all_users:
-                        if u['id'] > 0: counter = p_count
-                        else:           counter = g_count
+                        if u['id'] < 2000000000:    counter = p_count
+                        else:                       counter = g_count
                         counter[0] += 1
                         if u['mailing']:
                             counter[1] += 1
