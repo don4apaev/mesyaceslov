@@ -8,6 +8,7 @@ import bot as B
 CMD_START           = 'start'
 CMD_HELP            = 'help'
 CMD_STAT            = 'stat'
+CMD_TO_ALL          = 'toall: '
 CMD_TODAY           = 'today'
 CMD_TOMORROW        = 'tomorrow'
 CMD_YESTERDAY       = 'yesterday'
@@ -83,6 +84,43 @@ class TG_Sender(B.Bot_Sender):
                         if u['mailing']:
                             counter[1] += 1
                     text = B.Statistic.format(p_count[0], p_count[1], g_count[0], g_count[1])
+            await self._bot.reply_to(message, text)
+
+        @self._bot.message_handler(func=lambda m: m.text.startswith(CMD_TO_ALL), chat_types=['private'])
+        # @B.Bot_Sender.except_log
+        async def send_from_admin_to_all(message):
+            """
+            Статистика по боту
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(message.chat.id, self._db_type):
+                if user['admin'] == True:
+                    text_to_all = message.text.removeprefix(CMD_TO_ALL)
+                    if message.entities:
+                        for e in message.entities:
+                            e.offset -= len(CMD_TO_ALL)
+                    all_users = await self._db_handler.get_users(self._db_type)
+                    bad = []
+                    ok = 0
+                    limit_count = 0
+                    for u in all_users:
+                        if limit_count == 20:
+                            await sleep(1)
+                            limit_count = 0
+                        try:
+                            await self._bot.send_message(u['id'], text_to_all, entities=message.entities)
+                        except Exception as e:
+                            bad.append(str(u['id']))
+                            self._logger.info(f'Broadcast error for VK user {u['id']}: {e}')
+                        else:
+                            ok += 1
+                            self._logger.debug(f'Send broadcast to VK user {u['id']}')
+                        finally:
+                            limit_count += 1
+                    text = f'Send in {ok} chats.'
+                    if len(bad):
+                        text += f'\nError with {len(bad)} chats: {', '.join(bad)}'
             await self._bot.reply_to(message, text)
 
         @self._bot.message_handler(commands=[CMD_TODAY, CMD_TOMORROW, CMD_YESTERDAY])
@@ -375,9 +413,14 @@ class TG_Sender(B.Bot_Sender):
                     await sleep(1)
                     limit_count = 0
                 text = await text_func(user, day_type)
-                await self._bot.send_message(user['id'], text, parse_mode=parse)
-                self._logger.debug(f'Send Slovo in {day} mailing of Teleframk user {user['id']}')
-                limit_count += 1
+                try:
+                    await self._bot.send_message(user['id'], text, parse_mode=parse)
+                except Exception as e:
+                    self._logger.info(f'Mailing error for Telegram user {user['id']}: {e}')
+                else:
+                    self._logger.debug(f'Send Slovo in {day} mailing of Telegram user {user['id']}')
+                finally:
+                    limit_count += 1
 
     async def _make_mailing_choice(self, user_id):
             """

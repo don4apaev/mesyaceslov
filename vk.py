@@ -4,10 +4,11 @@ from vkbottle import Keyboard, Text, Callback, GroupEventType
 from utils import Days, BotType
 import bot as B
 
-CMD_START           = 'Начать'
+CMD_START           = ('Начать', 'Start')
 CMD_HELP            = 'Помощь'
-CMD_MENU            = ("Meню", "меню", 'Help', 'help')
-CMD_STAT            = 'stat'
+CMD_MENU            = (CMD_HELP, 'помощь', "Meню", "меню", 'Help', 'help', '\N{Circled Information Source}')
+CMD_STAT            = ('стат', 'stat')
+CMD_TO_ALL          = 'рассылка: '
 CMD_TODAY           = 'Сегодня'
 CMD_TOMORROW        = 'Завтра'
 CMD_YESTERDAY       = 'Вчера'
@@ -61,8 +62,8 @@ class VK_Sender(B.Bot_Sender):
                 text += '\n' + self._make_mailing_info(user)
                 await message.answer(text)
 
-        @self._bot.on.message(func=lambda m: m.text.endswith((CMD_HELP, *CMD_MENU))\
-                        or m.text.startswith(('\N{Circled Information Source}', CMD_HELP, *CMD_MENU)))
+        @self._bot.on.message(func=lambda m: m.text.endswith(CMD_MENU)\
+                        or m.text.startswith(CMD_MENU))
         @B.Bot_Sender.except_log
         async def help_send(message):
             """
@@ -97,6 +98,40 @@ class VK_Sender(B.Bot_Sender):
                         if u['mailing']:
                             counter[1] += 1
                     text = B.Statistic.format(p_count[0], p_count[1], g_count[0], g_count[1])
+            await message.reply(text)
+
+        @self._bot.on.private_message(func=lambda m: m.text.startswith(CMD_TO_ALL))
+        @B.Bot_Sender.except_log
+        async def send_from_admin_to_all(message):
+            """
+            Статистика по боту
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(message.peer_id, self._db_type):
+                if user['admin'] == True:
+                    text_to_all = message.text.removeprefix(CMD_TO_ALL)
+                    all_users = await self._db_handler.get_users(self._db_type)
+                    bad = []
+                    ok = 0
+                    limit_count = 0
+                    for u in all_users:
+                        if limit_count == 20:
+                            await sleep(1)
+                            limit_count = 0
+                        try:
+                            await self._bot.api.messages.send(peer_ids=u['id'], random_id=0, message=text_to_all)
+                        except Exception as e:
+                            bad.append(str(u['id']))
+                            self._logger.info(f'Broadcast error for VK user {u['id']}: {e}')
+                        else:
+                            ok += 1
+                            self._logger.debug(f'Send broadcast to VK user {u['id']}')
+                        finally:
+                            limit_count += 1
+                    text = f'Send to {ok} users.'
+                    if len(bad):
+                        text += f'\nError with {len(bad)} users: {', '.join(bad)}'
             await message.reply(text)
 
         @self._bot.on.message(func=lambda m: m.text.endswith((CMD_TODAY, CMD_TOMORROW, CMD_YESTERDAY))\
@@ -440,9 +475,14 @@ class VK_Sender(B.Bot_Sender):
                     await sleep(1)
                     limit_count = 0
                 text = (await text_func(user, day_type)).replace('_','').replace('*','')
-                await self._bot.api.messages.send(peer_ids=user['id'], random_id=0, message=text)
-                self._logger.debug(f'Send Slovo in {day} mailing of VK user {user['id']}')
-                limit_count += 1
+                try:
+                    await self._bot.api.messages.send(peer_ids=user['id'], random_id=0, message=text)
+                except Exception as e:
+                    self._logger.info(f'Mailing error for VK user {user['id']}: {e}')
+                else:
+                    self._logger.debug(f'Send Slovo in {day} mailing of VK user {user['id']}')
+                finally:
+                    limit_count += 1
 
     def _add_menu_buttons(self, keyboard):
         keyboard.add(Text('\N{HOURGLASS}'+CMD_YESTERDAY))
