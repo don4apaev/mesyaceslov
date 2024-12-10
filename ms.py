@@ -197,7 +197,10 @@ class MS_producer:
             return Error
         name, work, fasting, crowning, _ = day_info
         # Заполняем название
-        slovo += f'*{name}*. {Dni[work]} день, '
+        slovo += f'*{name}*. '
+        if date.isoweekday() == 3:
+            slovo += '\N{Frog Face} '
+        slovo += f'{Dni[work]} день, '
         # Заполняем пост
         if fasting > 0:
             slovo += 'постный'
