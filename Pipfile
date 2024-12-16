@@ -2,7 +2,6 @@
 python_version = "*"
 
 [packages]
-#dateutil = "*"
 pyTelegramBotAPI = "*"
 aiohttp="*"
 aiosqlite="*"
@@ -11,3 +10,7 @@ vkbottle="*"
 uvloop="*"
 loguru="*"
 ujson="*"
+ruff = "*"
+python-dateutil="*"
+
+[dev-packages]
