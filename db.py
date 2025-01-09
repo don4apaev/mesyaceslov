@@ -134,9 +134,10 @@ class Days_DB_handler(DB_handler):
         # Скачать и распаковать производственный календарь
         try:
             url = f"https://xmlcalendar.ru/data/ru/{cur_year}/calendar.xml"
+            self._logger.debug(f"Download calendar from {url}")
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
-                    calendar = response.content.decode()
+                    calendar = (await response.read()).decode()
         except Exception as e:
             self._logger.error(
                 f"Some exception while get xmlcalendar\n"
@@ -166,6 +167,8 @@ class Days_DB_handler(DB_handler):
                 f'\t"{e}" on {e.__traceback__.tb_lineno}'
             )
             return
+        else:
+            self._logger.debug(f"Get days: {holydays}")
         # Заполнить даты в календаре на год
         all_days = []
         iter_date = date(year=cur_year, month=1, day=1)
@@ -175,10 +178,10 @@ class Days_DB_handler(DB_handler):
             fasting = get_fasting_type(iter_date, cur_year)
             crowning = get_crowning(iter_date, cur_year)
             holyday = get_holyday(iter_date, cur_year)
-            iter_date += timedelta(days=1)
-            all_days.append(
+            all_days.append((
                 day_type, fasting, crowning, holyday, iter_date.month, iter_date.day
-            )
+            ))
+            iter_date += timedelta(days=1)
 
         sql_req = (
             "UPDATE days_os SET (work, fasting, crowning, holy) = (?, ?, ?, ?) "
@@ -194,7 +197,7 @@ class Days_DB_handler(DB_handler):
             )
             return
         else:
-            self._logger.debug(f"days_os updated")
+            self._logger.info(f"days_os updated")
         # Обновить данные в saints
         # Обновить даты переходящих праздников
         # 104 - первое вск после 31 окт
