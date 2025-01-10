@@ -56,6 +56,16 @@ Dni = {
 }
 
 Posty = {
+    -1: "Великий пост",
+    -2: "Апостольский пост",
+    -3: "Успенский пост",
+    -4: "Рождественский пост",
+    -5: "Крещенский сочельник",
+    -6: "пост в память о усекновении главы Иоанна Предтечи",
+    -7: "пост в память о воздвижении Креста Господня",
+}
+
+Stepeni = {
     1: "Мясопуст, воздержание от мяса",
     2: "Постный день, разрешена рыба",
     3: "Постный день, разрешена горячая пища с маслом",
@@ -149,21 +159,22 @@ class MS_producer:
             return Error
         slovo += (
             f"*{ciril_day}* ({old_date.day}) *{Mesyacy[old_date.month]} {ciril_creation_year}* "
-            f"({creation_year}) *года от сотворения мира * по старому стилю."
+            f"({creation_year}) *года от сотворения мира * по старому стилю.\n"
         )
         # Заполняем пост
-        if fasting := Posty.get(fasting):
-            slovo += f" {fasting}."
-        slovo += "\n"
+        if holy < 0:
+            slovo += f"\nИдёт {Posty[holy]}. "
+        if fasting := Stepeni.get(fasting):
+            slovo += f"{fasting}.\n"
         # Заполняем Великие праздники
-        if holy:
+        if holy > 0:
             name, sign, _, _ = await self._db_handler.get_saint(holy)
             slovo += f"\nВеликий праздник - {Znaki[sign]} {name}!\n"
         # Отделяем дни поминования от икон
         saint_slovo = ""
         icon_slovo = ""
-        for holy in saints_list:
-            _, s_name, s_sign = holy
+        for saint in saints_list:
+            _, s_name, s_sign = saint
             if s_sign == 0:
                 icon_slovo += "\n" + Znaki[s_sign] + " " + s_name
             elif s_sign is None:
@@ -198,8 +209,10 @@ class MS_producer:
         if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f"Can't find day info for {date.day}.{date.month}")
             return Error
-        name, work, fasting, crowning, _ = day_info
+        name, work, fasting, crowning, holy = day_info
         # Заполняем название
+        if holy > 0:
+            name, _, _, _ = await self._db_handler.get_saint(holy)
         slovo += f"*{name}*. "
         if date.isoweekday() == 3:
             slovo += "\N{FROG FACE} "

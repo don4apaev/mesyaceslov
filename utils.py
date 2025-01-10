@@ -54,7 +54,7 @@ def get_fasting(day_date: date, cur_year: int) -> int:
     elif (f_easter - day_date).days in range(42, 49):
         # Великий Пост, первая седмица
         return 1
-    elif (f_easter - day_date).days in range(35, 42):
+    elif (f_easter - day_date).days in range(14, 42):
         # Великий Пост, вторая-пятая седмицы
         return 2
     elif (f_easter - day_date).days in range(7, 14):
@@ -120,10 +120,11 @@ def get_fasting(day_date: date, cur_year: int) -> int:
 
 def get_holyday(day_date: date, cur_year: int) -> int:
     """
-    Узнать, выпадает ли день на Пасху или Великие праздники
+    Узнать, выпадает ли день на Пасху, Великие праздники или Посты
     """
     # Получить Пасху
     f_easter = easter.easter(cur_year, easter.EASTER_ORTHODOX)
+    fasting = get_fasting(day_date, cur_year)
     if day_date == f_easter:
         # Пасха
         return 1
@@ -178,6 +179,27 @@ def get_holyday(day_date: date, cur_year: int) -> int:
     elif day_date == date(year=cur_year, month=9, day=11):
         # Усекновение главы Иоанна Крестителя
         return 18
+    if fasting in (1, 2, 3, 4):
+        # Великий пост
+        return -1
+    if fasting == 5:
+        # Апостольский пост
+        return -2
+    if fasting == 6:
+        # Успенский пост
+        return -3
+    if fasting in (7, 8, 9):
+        # Рождественский пост
+        return -4
+    if fasting == 10:
+        # Крещенский сочельник
+        return -5
+    if fasting == 11:
+        # Усекновение главы Иоанна Предтечи
+        return -6
+    if fasting == 12:
+        # Воздвижение Креста Господня
+        return -7
     else:
         # Нет праздников
         return 0
