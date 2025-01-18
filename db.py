@@ -203,6 +203,7 @@ class Days_DB_handler(DB_handler):
         # 104 - первое вск после 31 окт
         # 230 - ближайшее вск к 23 ноя
         # 485 - первое вскр после Р или пн, если Р в вскр
+        # 561 - первая суб по Богоявлению
         await self.db.commit()
 
     async def get_day_values(self, day_date: date) -> tuple:
