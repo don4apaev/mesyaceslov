@@ -119,7 +119,7 @@ class MS_producer:
         if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f"Can't find day info for {date.day}.{date.month}")
             return Error
-        _, _, fasting, f_type, _, _ = day_info
+        _, _, fasting, f_type, _, holy = day_info
         # Получаем поминаемых святых и иконы  из БД
         if len(saints_list := await self._db_handler.get_saints(date)) == 0:
             self._logger.error(f"Can't find saits info for {date.day}.{date.month}")
@@ -136,7 +136,9 @@ class MS_producer:
             f"*{ciril_day}* ({old_date.day}) *{Mesyacy[old_date.month]} {ciril_creation_year}* "
             f"({creation_year}) *года от сотворения мира * по старому стилю.\n"
         )
-        # Заполняем пост
+        # Заполняем великие праздники и пост
+        if holy:
+            slovo += f"\nВеликий праздник - {Znaki[1]} *{holy}*!\n"
         if fasting and f_type:
             slovo += f"\nИдёт {fasting}, {f_type}.\n"
         # Отделяем дни поминования от икон
@@ -178,7 +180,7 @@ class MS_producer:
         if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f"Can't find day info for {date.day}.{date.month}")
             return Error
-        name, work, fasting, crowning, holy = day_info
+        name, work, fasting, _, crowning, holy = day_info
         # Заполняем название
         slovo += f"*{name}*. "
         if date.isoweekday() == 3:
@@ -191,7 +193,7 @@ class MS_producer:
             slovo += "поста нет, "
         slovo += f"{crowning}."
         if holy:
-            slovo += f"\nВеликий праздник - {holy}!"
+            slovo += f"\nВеликий праздник - *{holy}*!"
         slovo += "\n\n"
         # Получаем приметы
         try:
