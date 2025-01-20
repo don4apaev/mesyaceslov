@@ -36,7 +36,7 @@ class InitError(MesyaceslovError):
     pass
 
 
-def get_fasting(day_date: date, cur_year: int) -> int:
+def get_fasting_detailed(day_date: date, cur_year: int) -> int:
     """
     Узнать, выпадает ли день на многодневный или однодневный пост.
     """
@@ -117,14 +117,42 @@ def get_fasting(day_date: date, cur_year: int) -> int:
         # Нет поста
         return 0
 
+def get_fasting(day_date: date, cur_year: int) -> int:
+    fasting = get_fasting_detailed(day_date, cur_year)
+    if fasting in (1, 2, 3, 4):
+        # Великий пост
+        return 1
+    elif fasting == 5:
+        # Апостольский пост
+        return 2
+    elif fasting == 6:
+        # Успенский пост
+        return 3
+    elif fasting in (7, 8, 9):
+        # Рождественский пост
+        return 4
+    elif fasting == 10:
+        # Крещенский сочельник
+        return 5
+    elif fasting == 11:
+        # Усекновение главы Иоанна Предтечи
+        return 6
+    elif fasting == 12:
+        # Воздвижение Креста Господня
+        return 7
+    elif day_date.isoweekday() == 3:
+        return 8
+    elif day_date.isoweekday() == 5:
+        return 9
+    else:
+        return 0
 
-def get_holyday(day_date: date, cur_year: int) -> int:
+def get_g_holyday(day_date: date, cur_year: int) -> int:
     """
     Узнать, выпадает ли день на Пасху, Великие праздники или Посты
     """
     # Получить Пасху
     f_easter = easter.easter(cur_year, easter.EASTER_ORTHODOX)
-    fasting = get_fasting(day_date, cur_year)
     if day_date == f_easter:
         # Пасха
         return 1
@@ -179,27 +207,6 @@ def get_holyday(day_date: date, cur_year: int) -> int:
     elif day_date == date(year=cur_year, month=9, day=11):
         # Усекновение главы Иоанна Крестителя
         return 18
-    if fasting in (1, 2, 3, 4):
-        # Великий пост
-        return -1
-    if fasting == 5:
-        # Апостольский пост
-        return -2
-    if fasting == 6:
-        # Успенский пост
-        return -3
-    if fasting in (7, 8, 9):
-        # Рождественский пост
-        return -4
-    if fasting == 10:
-        # Крещенский сочельник
-        return -5
-    if fasting == 11:
-        # Усекновение главы Иоанна Предтечи
-        return -6
-    if fasting == 12:
-        # Воздвижение Креста Господня
-        return -7
     else:
         # Нет праздников
         return 0
@@ -216,8 +223,8 @@ def get_fasting_type(day_date: date, cur_year: int) -> int:
         5 - сухоядение
         6 - воздержание
     """
-    fasting = get_fasting(day_date, cur_year)
-    holyday = get_holyday(day_date, cur_year)
+    fasting = get_fasting_detailed(day_date, cur_year)
+    holyday = get_g_holyday(day_date, cur_year)
     if fasting == 1:
         if day_date.isoweekday() in (1, 2):
             return 6
@@ -330,10 +337,10 @@ def get_crowning(day_date: date, cur_year: int) -> int:
     if day_date.isoweekday() in (2, 4, 6):
         # Вторник, четверг и суббота
         return 0
-    fasting = get_fasting(day_date, cur_year)
-    eve_fasting = get_fasting(day_date + timedelta(days=1), cur_year)
-    holyday = get_holyday(day_date, cur_year)
-    eve_holyday = get_holyday(day_date + timedelta(days=1), cur_year)
+    fasting = get_fasting_detailed(day_date, cur_year)
+    eve_fasting = get_fasting_detailed(day_date + timedelta(days=1), cur_year)
+    holyday = get_g_holyday(day_date, cur_year)
+    eve_holyday = get_g_holyday(day_date + timedelta(days=1), cur_year)
     if fasting > 0:
         # Во время многодневных и однодневных постов
         return 0

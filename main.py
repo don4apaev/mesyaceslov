@@ -1,13 +1,9 @@
 # TODO
-# Расширение БД:
-#  - краткое описание для святых
-#  - посты в днях
-#  - таблицы для дней постов и их типов
-# Пост на стену
+# Пост на стену ВК
+# Информация о святом
 # Обновление + 4 дня вне года
 # Кэш в ms.py
 # Поиск именин
-# подробная информация о святом
 
 import asyncio, signal, logging, os, sys
 from datetime import datetime, timezone
@@ -16,7 +12,7 @@ from ms import MS_producer
 from db import Days_DB_handler, User_DB_handler
 from tg import TG_Sender
 from vk import VK_Sender
-from utils import InitError, Days, BotType
+from utils import InitError, Days
 
 DB_MS_FILE_NAME = "mesyaceslov.db"
 DB_USER_FILE_NAME = "users.db"

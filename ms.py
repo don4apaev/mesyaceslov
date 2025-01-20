@@ -49,31 +49,6 @@ Mesyacy = {
     12: "декабря",
 }
 
-Dni = {
-    1: "Выходной",
-    2: "Сокращённый рабочий",
-    3: "Рабочий",
-}
-
-Posty = {
-    -1: "Великий пост",
-    -2: "Апостольский пост",
-    -3: "Успенский пост",
-    -4: "Рождественский пост",
-    -5: "Крещенский сочельник",
-    -6: "пост в память о усекновении главы Иоанна Предтечи",
-    -7: "пост в память о воздвижении Креста Господня",
-}
-
-Stepeni = {
-    1: "Мясопуст, воздержание от мяса",
-    2: "Постный день, разрешена рыба",
-    3: "Постный день, разрешена горячая пища с маслом",
-    4: "Постный день, разрешена горячая пища без масла",
-    5: "Постный день, сухоядение",
-    6: "Постный день, рекомендуется воздержание от пищи",
-}
-
 Znaki = {
     0: "\N{EIGHT POINTED BLACK STAR}",
     1: "\N{CIRCLED CROSS POMMEE}",
@@ -144,7 +119,7 @@ class MS_producer:
         if len(day_info := await self._db_handler.get_day_values(date)) == 0:
             self._logger.error(f"Can't find day info for {date.day}.{date.month}")
             return Error
-        name, work, fasting, crowning, holy = day_info
+        _, _, fasting, f_type, _, _ = day_info
         # Получаем поминаемых святых и иконы  из БД
         if len(saints_list := await self._db_handler.get_saints(date)) == 0:
             self._logger.error(f"Can't find saits info for {date.day}.{date.month}")
@@ -162,14 +137,8 @@ class MS_producer:
             f"({creation_year}) *года от сотворения мира * по старому стилю.\n"
         )
         # Заполняем пост
-        if holy < 0:
-            slovo += f"\nИдёт {Posty[holy]}. "
-        if fasting := Stepeni.get(fasting):
-            slovo += f"{fasting}.\n"
-        # Заполняем Великие праздники
-        if holy > 0:
-            name, sign, _, _ = await self._db_handler.get_saint(holy)
-            slovo += f"\nВеликий праздник - {Znaki[sign]} {name}!\n"
+        if fasting and f_type:
+            slovo += f"\nИдёт {fasting}, {f_type}.\n"
         # Отделяем дни поминования от икон
         saint_slovo = ""
         icon_slovo = ""
@@ -211,24 +180,18 @@ class MS_producer:
             return Error
         name, work, fasting, crowning, holy = day_info
         # Заполняем название
-        if holy > 0:
-            name, _, _, _ = await self._db_handler.get_saint(holy)
         slovo += f"*{name}*. "
         if date.isoweekday() == 3:
             slovo += "\N{FROG FACE} "
-        slovo += f"{Dni[work]} день, "
-        # Заполняем пост
-        if fasting > 0:
-            slovo += "постный"
+        # Заполняем рабочесть, пост, венчание и великие праздники
+        slovo += f"{work} день, "
+        if fasting:
+            slovo += f"идёт {fasting}, "
         else:
-            slovo += "поста нет"
-        # Заполняем венчание
-        if crowning == 0:
-            slovo += ", браковенчание не совершается."
-        elif crowning == 2:
-            slovo += ", венчание нежелательно."
-        else:
-            slovo += "."
+            slovo += "поста нет, "
+        slovo += f"{crowning}."
+        if holy:
+            slovo += f"\nВеликий праздник - {holy}!"
         slovo += "\n\n"
         # Получаем приметы
         try:

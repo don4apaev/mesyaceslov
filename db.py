@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import xml.etree.ElementTree as ET
 from logging import Logger
 
-from utils import get_fasting_type, get_crowning, get_holyday
+from utils import get_fasting, get_fasting_type, get_crowning, get_g_holyday
 from utils import XMLCalendarError
 
 
@@ -128,7 +128,7 @@ class User_DB_handler(DB_handler):
 
 class Days_DB_handler(DB_handler):
     async def fill_daytable(self):
-        # Обновить данные в days_os
+        # Обновить данные в days
         holydays = {}
         cur_year = date.today().year
         # Скачать и распаковать производственный календарь
@@ -152,10 +152,7 @@ class Days_DB_handler(DB_handler):
                 """
                 В XML теги <days>:
                     d - дата в формате ММ.ДД.
-                    t - тип записи: 
-                        1 - выходной день,
-                        2 - рабочий и сокращенный (может быть использован для любого дня недели),
-                        3 - рабочий день.
+                    t - тип записи: см. workday_types
                     h - ссылкой на идентификатор праздника из <holidays>.
                     f - дата с которой был перенесен выходной день в формате ММ.ДД
                 """
@@ -175,31 +172,33 @@ class Days_DB_handler(DB_handler):
         while iter_date.year == cur_year:
             if not (day_type := holydays.get(iter_date.month * 100 + iter_date.day)):
                 day_type = 3 if iter_date.isoweekday() < 6 else 1
-            fasting = get_fasting_type(iter_date, cur_year)
+            fasting = get_fasting(iter_date, cur_year)
+            f_type = get_fasting_type(iter_date, cur_year)
             crowning = get_crowning(iter_date, cur_year)
-            holyday = get_holyday(iter_date, cur_year)
+            g_holyday = get_g_holyday(iter_date, cur_year)
             all_days.append((
-                day_type, fasting, crowning, holyday, iter_date.month, iter_date.day
+                day_type, fasting, f_type, crowning, g_holyday, iter_date.month, iter_date.day
             ))
             iter_date += timedelta(days=1)
 
         sql_req = (
-            "UPDATE days_os SET (work, fasting, crowning, holy) = (?, ?, ?, ?) "
-            "WHERE month=? AND day=?"
+            "UPDATE days SET (work, fasting, f_type, crowning, holy) = "
+            "(?, ?, ?, ?, ?) WHERE month=? AND day=?"
         )
         try:
             cursor = await self.db.executemany(sql_req, all_days)
             await self.db.commit()
         except Exception as e:
             self._logger.error(
-                f"Some exception while updatiing days_os\n"
+                f"Some exception while updatiing days\n"
                 f'\t"{e}" on {e.__traceback__.tb_lineno}'
             )
             return
         else:
-            self._logger.info(f"days_os updated")
+            self._logger.info(f"days updated")
         # Обновить данные в saints
         # Обновить даты переходящих праздников
+        # 1-18 - великие праздники
         # 104 - первое вск после 31 окт
         # 230 - ближайшее вск к 23 ноя
         # 485 - первое вскр после Р или пн, если Р в вскр
@@ -209,8 +208,14 @@ class Days_DB_handler(DB_handler):
     async def get_day_values(self, day_date: date) -> tuple:
         try:
             sql_req = (
-                "SELECT name, work, fasting, crowning, holy FROM days_os "
-                "WHERE month=? AND day=?"
+                "SELECT D.name, W.name, F.name, T.name, C.name, S.name "
+                "FROM days AS D "
+                "JOIN workday_types AS W ON W.id=D.work "
+                "JOIN fasting_name AS F ON F.id=D.fasting "
+                "JOIN fasting_type AS T ON T.id=D.f_type "
+                "JOIN crowning_types AS C ON C.id=D.crowning "
+                "JOIN saints AS S ON S.id=D.holy "
+                "WHERE D.month=? AND D.day=?"
             )
             async with self.db.execute(
                 sql_req, (day_date.month, day_date.day)
@@ -219,7 +224,7 @@ class Days_DB_handler(DB_handler):
                 return tuple(day)
         except Exception as e:
             self._logger.error(
-                f"Some exception while get {day_date} info from days_os\n"
+                f"Some exception while get {day_date} info from days\n"
                 f'\t"{e}" on {e.__traceback__.tb_lineno}'
             )
             return None
