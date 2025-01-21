@@ -1,5 +1,4 @@
 # TODO
-# Пост на стену ВК
 # Информация о святом
 # Обновление + 4 дня вне года
 # Кэш в ms.py
@@ -45,7 +44,7 @@ async def post_vk(users_db: User_DB_handler, bot: VK_Sender):
     cur_hour = datetime.now(timezone.utc).hour
     while True:
         await asyncio.sleep(1)
-        new_hour = datetime.now(timezone.utc).second
+        new_hour = datetime.now(timezone.utc).hour
         if new_hour != cur_hour:
             cur_hour = new_hour
             user = await users_db.get_user_info(WALL_DB_ID, bot.db_type)
