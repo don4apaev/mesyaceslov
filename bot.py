@@ -91,6 +91,8 @@ Mailing_info_on = (
 Mailing_info_time_off = "не назначена"
 Mailing_info_time_on = "в {} час{}"
 
+Broadcast_ok = "Разослано {} пользователям."
+Broadcast_bad = "Ошибка у {} пользователей: {}."
 
 class Bot_Sender:
     @property

@@ -1,9 +1,11 @@
-from vkbottle.bot import Bot, Message, MessageEvent, rules
-from vkbottle import Keyboard, Text, Callback, GroupEventType
+from vkbottle.bot import Bot, MessageEvent, rules
+from vkbottle import Keyboard, Text, Callback, GroupEventType, API
+from asyncio import sleep
 
 from utils import Days, BotType
 import bot as B
 
+WALL_DB_ID = 0
 CMD_START = ("Начать", "Start")
 CMD_HELP = "Помощь"
 CMD_MENU = (
@@ -17,6 +19,11 @@ CMD_MENU = (
 )
 CMD_STAT = ("стат", "stat")
 CMD_TO_ALL = "рассылка: "
+CMD_TO_WALL = "опубликовать: "
+CMD_WALL = "стена"
+CMD_WALL_TIMEZONE = " пояс "
+CMD_WALL_TODAY = " cегодня "
+CMD_WALL_TOMORROW = " завтра "
 CMD_TODAY = "Сегодня"
 CMD_TOMORROW = "Завтра"
 CMD_YESTERDAY = "Вчера"
@@ -35,12 +42,43 @@ BTN_ML_TIME_SET = "MLNG_time"
 BTN_ON = "on"
 BTN_OFF = "off"
 
+Admin_help = (
+    "Для проказа статистики используй "
+    +" или ".join([f"\"{cmd}\"" for cmd in CMD_STAT])
+    +f".\n\nДля рассылки используй \"{CMD_TO_ALL}\".\n\nДля публикации на стене "
+    f"используй \"{CMD_TO_WALL}\"."
+)
+Wall_help = (
+    "Для управлениями запланированными публикациями на стене начни команду с "
+    f"\"{CMD_WALL}\". Без дополнительных параметров в ответ получишь информацию "
+    f"о публикациях.\nДля редактирования после \"{CMD_WALL}\" укажи редактируемое "
+    f"значение:\n- \"{CMD_WALL_TIMEZONE}\" для часового пояса;\n- "
+    f"\"{CMD_WALL_TODAY}\" для времении публикации святых на сегодня;\n- "
+    f"\"{CMD_WALL_TOMORROW}\" для времении публикации примет на завтра;\nпосле чего"
+    " укажи значение:\n- для часового пояса в пределах от -15 до 9;\n- для времени "
+    "публикации от 0 до 24 или другое число или \"-\" для отмены публикации."
+)
+Wall_tz = "Часовой пояс для публикаций - МСК{}"
+Wall_post_today = "Публикация святых на сегодня {}"
+Wall_post_tomorrow = "Публикация примет на завтра {}"
+Wall_tz_error = (
+    "Меню управления публикациями, часовой пояс.\nОшибка в значении: \"{}\" - "
+    "должно быть между -15 и 9."
+)
+Wall_parse_error = (
+    "Меню управления публикациями.\nНе распознанная часть команды: \"{}\"."
+)
+Wall_error = "Ошибка публикации: {}."
+Wall_success = "Успешно опубликовано."
+
 
 class VK_Sender(B.Bot_Sender):
-    def __init__(self, token, **kwargs):
+    def __init__(self, bot_token, api_token, group_id, **kwargs):
         super().__init__(**kwargs)
         self._db_type = BotType.VK.value
-        self._bot = Bot(token=token)
+        self._bot = Bot(token=bot_token)
+        self._api = API(api_token)
+        self._group_id = group_id
         self._user_inreract = {}
 
         @self._bot.on.message(
@@ -103,6 +141,11 @@ class VK_Sender(B.Bot_Sender):
                 ),
                 keyboard=keyboard,
             )
+            if user := await self._db_handler.get_user_info(
+                message.peer_id, self._db_type
+            ):
+                if user["admin"] == True:
+                    await message.answer(Admin_help + '\n\n' + Wall_help)
 
         @self._bot.on.private_message(text=CMD_STAT)
         @B.Bot_Sender.except_log
@@ -159,16 +202,155 @@ class VK_Sender(B.Bot_Sender):
                         except Exception as e:
                             bad.append(str(u["id"]))
                             self._logger.info(
-                                f'Broadcast error for VK user {u['id']}: {e}'
+                                f"Broadcast error for VK user {u['id']}: {e}"
                             )
                         else:
                             ok += 1
-                            self._logger.debug(f'Send broadcast to VK user {u['id']}')
+                            self._logger.debug(f"Send broadcast to VK user {u['id']}")
                         finally:
                             limit_count += 1
-                    text = f"Send to {ok} users."
+                    text = B.Broadcast_ok.format(ok)
                     if len(bad):
-                        text += f'\nError with {len(bad)} users: {', '.join(bad)}'
+                        text += B.Broadcast_bad.format(len(bad), ', '.join(bad))
+            await message.reply(text)
+
+        @self._bot.on.private_message(func=lambda m: m.text.startswith(CMD_WALL))
+        @B.Bot_Sender.except_log
+        async def wall_edit(message):
+            """
+            Управление публикациями на стене
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(
+                message.peer_id, self._db_type
+            ):
+                if user["admin"] == True:
+                    subcmd = message.text.removeprefix(CMD_WALL)
+                    wall = await self._db_handler.get_user_info(
+                            WALL_DB_ID,
+                            self._db_type
+                        )
+                    if subcmd == '':
+                        # Только запрос - вернуть настройки
+                        tz = wall["timezone"]-3
+                        if tz < 0:
+                            tz_suf = f"{tz}."
+                        elif tz > 0:
+                            tz_suf = f"+{tz}."
+                        else:
+                            tz_suf = "."
+                        text = Wall_tz.format(tz_suf)
+                        if wall["today"] is not None:
+                            time = (wall["today"] + tz) % 24
+                            td_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            td_suf = B.Mailing_info_time_off
+                        text += "\n" + Wall_post_today.format(td_suf)
+                        if wall["tomorrow"] is not None:
+                            time = (wall["tomorrow"] + tz) % 24
+                            tm_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            tm_suf = B.Mailing_info_time_off
+                        text += "\n" + Wall_post_tomorrow.format(tm_suf)
+                    elif subcmd.startswith(CMD_WALL_TIMEZONE):
+                        # Редактирование часового пояса
+                        val = subcmd.removeprefix(CMD_WALL_TIMEZONE)
+                        tz = self._parse_tz(val)
+                        if tz is None:
+                            text = Wall_tz_error.format(val)
+                        else:
+                            timezone = tz + 3
+                            await self._db_handler.set_user_timezone(
+                                WALL_DB_ID,
+                                self._db_type,
+                                timezone
+                            )
+                            if tz < 0:
+                                tz_suf = f"{tz}."
+                            if tz > 0:
+                                tz_suf = f"+{tz}."
+                            else:
+                                tz_suf = "."
+                            text = Wall_tz.format(tz_suf)
+                    elif subcmd.startswith(CMD_WALL_TODAY):
+                        # Редактирование публикации святых на сегодня
+                        val = subcmd.removeprefix(CMD_WALL_TODAY)
+                        time = self._parse_mailing_time(val)
+                        if time is None:
+                            db_time = time
+                        else:
+                            db_time = (time - wall["timezone"]) % 24
+                        await self._db_handler.set_user_today_time(
+                            WALL_DB_ID,
+                            self._db_type,
+                            db_time
+                        )
+                        if time is not None:
+                            td_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            td_suf = B.Mailing_info_time_off
+                        text = Wall_post_today.format(td_suf)
+                    elif subcmd.startswith(CMD_WALL_TOMORROW):
+                        # Редактирование публикации святых на сегодня
+                        val = subcmd.removeprefix(CMD_WALL_TOMORROW)
+                        time = self._parse_mailing_time(val)
+                        if time is None:
+                            db_time = time
+                        else:
+                            db_time = (time - wall["timezone"]) % 24
+                        await self._db_handler.set_user_tomorrow_time(
+                            WALL_DB_ID,
+                            self._db_type,
+                            db_time
+                        )
+                        if time is not None:
+                            tm_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            tm_suf = B.Mailing_info_time_off
+                        text = Wall_post_tomorrow.format(tm_suf)
+                    else:
+                        # Ошибка распознавания
+                        text = Wall_parse_error.format(subcmd) + '\n\n' + Wall_help
+            await message.reply(text)
+
+        @self._bot.on.private_message(func=lambda m: m.text.startswith(CMD_TO_WALL))
+        @B.Bot_Sender.except_log
+        async def post_from_admin_to_wall(message):
+            """
+            Управление публикациями на стене
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(
+                message.peer_id, self._db_type
+            ):
+                if user["admin"] == True:
+                    text_to_wall = message.text.removeprefix(CMD_TO_WALL)
+                    try:
+                        await self._api.wall.post(
+                            message=text_to_wall,
+                            from_group=1,
+                            owner_id=self._group_id
+                        )
+                    except Exception as e:
+                        text = Wall_error.format(e)
+                        self._logger.info(f'VK wall posting error: {e}')
+                    else:
+                        text = Wall_success
+                        self._logger.debug(text)
             await message.reply(text)
 
         @self._bot.on.message(
@@ -607,7 +789,6 @@ class VK_Sender(B.Bot_Sender):
         """
         Вернуть асинхронную функцию бесконечного опроса бота
         """
-
         async def run_polling():
             async for event in self._bot.polling.listen():
                 for update in event["updates"]:
@@ -626,7 +807,6 @@ class VK_Sender(B.Bot_Sender):
         else:  # Days.TODAY
             text_func = self._ms_producer.make_holy
             day = "today"
-        parse = "Markdown"
         # Получаем Слово на день и отправить сообщение
         limit_count = 0
         for user in users:
@@ -639,13 +819,38 @@ class VK_Sender(B.Bot_Sender):
                     peer_ids=user["id"], random_id=0, message=text
                 )
             except Exception as e:
-                self._logger.info(f'Mailing error for VK user {user['id']}: {e}')
+                self._logger.info(f"Mailing error for VK user {user['id']}: {e}")
             else:
                 self._logger.debug(
-                    f'Send Slovo in {day} mailing of VK user {user['id']}'
+                    f"Send Slovo in {day} mailing of VK user {user['id']}"
                 )
             finally:
                 limit_count += 1
+
+    @B.Bot_Sender.except_log
+    async def do_wall_post(self, day_type):
+        """
+        Опубликовать запись на стене
+        """
+        if day_type == Days.TOMMOROW:
+            text_func = self._ms_producer.make_sign
+            day = "tomorrow"
+        else:  # Days.TODAY
+            text_func = self._ms_producer.make_holy
+            day = "today"
+        # Получаем Слово на день и публикуем
+        user = await self._db_handler.get_user_info(WALL_DB_ID, self._db_type)
+        text = (await text_func(user, day_type)).replace("_", "").replace("*", "")
+        try:
+            await self._api.wall.post(
+                            message=text,
+                            from_group=1,
+                            owner_id=self._group_id
+                        )
+        except Exception as e:
+            self._logger.info(f'VK posting error: {e}')
+        else:
+            self._logger.debug(f'VK {day} post OK')
 
     def _add_menu_buttons(self, keyboard):
         keyboard.add(Text("\N{HOURGLASS}" + CMD_YESTERDAY))

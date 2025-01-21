@@ -27,6 +27,10 @@ BTN_ML_TIME_SET = f"{CMD_MAILING}_time_"
 BTN_ON = "on_"
 BTN_OFF = "off_"
 
+Admin_help = (
+    f"Для проказа статистики используй \"/{CMD_STAT}\".\n"
+    f"Для рассылки используй \"{CMD_TO_ALL}\"."
+)
 
 class TG_Sender(B.Bot_Sender):
     def __init__(self, token, **kwargs):
@@ -86,6 +90,11 @@ class TG_Sender(B.Bot_Sender):
                     f"/{CMD_TIMEZONE}",
                 ),
             )
+            if user := await self._db_handler.get_user_info(
+                message.chat.id, self._db_type
+            ):
+                if user["admin"] == True:
+                    await self._bot.send_message(message.chat.id, Admin_help)
 
         @self._bot.message_handler(commands=[CMD_STAT], chat_types=["private"])
         @B.Bot_Sender.except_log
@@ -147,16 +156,16 @@ class TG_Sender(B.Bot_Sender):
                         except Exception as e:
                             bad.append(str(u["id"]))
                             self._logger.info(
-                                f'Broadcast error for VK user {u['id']}: {e}'
+                                f"Broadcast error for VK user {u['id']}: {e}"
                             )
                         else:
                             ok += 1
-                            self._logger.debug(f'Send broadcast to VK user {u['id']}')
+                            self._logger.debug(f"Send broadcast to VK user {u['id']}")
                         finally:
                             limit_count += 1
-                    text = f"Send in {ok} chats."
+                    text = B.Broadcast_ok.format(ok)
                     if len(bad):
-                        text += f'\nError with {len(bad)} chats: {', '.join(bad)}'
+                        text += B.Broadcast_bad.format(len(bad), ', '.join(bad))
             await self._bot.reply_to(message, text)
 
         @self._bot.message_handler(commands=[CMD_TODAY, CMD_TOMORROW, CMD_YESTERDAY])
@@ -555,10 +564,10 @@ class TG_Sender(B.Bot_Sender):
             try:
                 await self._bot.send_message(user["id"], text, parse_mode=parse)
             except Exception as e:
-                self._logger.info(f'Mailing error for Telegram user {user['id']}: {e}')
+                self._logger.info(f"Mailing error for Telegram user {user['id']}: {e}")
             else:
                 self._logger.debug(
-                    f'Send Slovo in {day} mailing of Telegram user {user['id']}'
+                    f"Send Slovo in {day} mailing of Telegram user {user['id']}"
                 )
             finally:
                 limit_count += 1

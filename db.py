@@ -48,7 +48,7 @@ class User_DB_handler(DB_handler):
     async def get_user_info(self, user_id: int, bot_type: int) -> dict:
         async with self.lock:
             keys = ("id", "admin", "mailing", "timezone", "today", "tomorrow")
-            sql_req = f'SELECT {','.join(keys)} FROM users WHERE id=? AND type=?'
+            sql_req = f"SELECT {','.join(keys)} FROM users WHERE id=? AND type=?"
             async with self.db.execute(sql_req, (user_id, bot_type)) as cursor:
                 user = await cursor.fetchone()
                 if not user:
@@ -100,7 +100,7 @@ class User_DB_handler(DB_handler):
                 "timezone",
             )
             sql_req = (
-                f'SELECT {','.join(keys)} FROM users '
+                f"SELECT {','.join(keys)} FROM users "
                 f'WHERE type=? AND mailing=? AND {mailing_type}=?'
             )
             async with self.db.execute(sql_req, (bot_type, True, hour_utc)) as cursor:
@@ -118,7 +118,7 @@ class User_DB_handler(DB_handler):
     async def get_users(self, bot_type: int) -> list:
         async with self.lock:
             keys = ("id", "mailing", "timezone", "today", "tomorrow")
-            sql_req = f'SELECT {','.join(keys)} FROM users WHERE type=?'
+            sql_req = f"SELECT {','.join(keys)} FROM users WHERE type=?"
             async with self.db.execute(sql_req, (bot_type,)) as cursor:
                 users = await cursor.fetchall()
                 if len(users) == 0:

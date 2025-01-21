@@ -5,20 +5,22 @@
 # Кэш в ms.py
 # Поиск именин
 
-import asyncio, signal, logging, os, sys
+import asyncio, logging, os, sys
 from datetime import datetime, timezone
 
 from ms import MS_producer
 from db import Days_DB_handler, User_DB_handler
 from tg import TG_Sender
-from vk import VK_Sender
+from vk import VK_Sender, WALL_DB_ID
 from utils import InitError, Days
 
 DB_MS_FILE_NAME = "mesyaceslov.db"
 DB_USER_FILE_NAME = "users.db"
 LOG_FILE_NAME = "log"
 TG_TOKEN_ENV_NAME = "TG_MS_TOKEN"
-VK_TOKEN_ENV_NAME = "VK_MS_TOKEN"
+VK_BOT_TOKEN_ENV_NAME = "VK_BOT_MS_TOKEN"
+VK_API_TOKEN_ENV_NAME = "VK_API_MS_TOKEN"
+VK_GROUP_ID_ENV_NAME = "VK_MS_GROUP_ID"
 
 
 async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
@@ -36,6 +38,21 @@ async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
                 users = await users_db.get_tomorrow_mailing_users(bot.db_type, cur_hour)
                 await asyncio.gather(bot.slovo_send_by_mailing(users, Days.TOMMOROW))
 
+async def post_vk(users_db: User_DB_handler, bot: VK_Sender):
+    """
+    Узнать ближайшую публикацию и заснуть до неё
+    """
+    cur_hour = datetime.now(timezone.utc).hour
+    while True:
+        await asyncio.sleep(1)
+        new_hour = datetime.now(timezone.utc).second
+        if new_hour != cur_hour:
+            cur_hour = new_hour
+            user = await users_db.get_user_info(WALL_DB_ID, bot.db_type)
+            if cur_hour == user["today"]:
+                await asyncio.gather(bot.do_wall_post(Days.TODAY))
+            if cur_hour == user["tomorrow"]:
+                await asyncio.gather(bot.do_wall_post(Days.TOMMOROW))
 
 async def main(verbose: bool = False):
     # Проверить входщие данные
@@ -43,8 +60,13 @@ async def main(verbose: bool = False):
         raise (
             InitError(f'Need "{TG_TOKEN_ENV_NAME}" variable with Telegram bot token')
         )
-    if (vk_token := os.environ.get(VK_TOKEN_ENV_NAME)) is None:
-        raise (InitError(f'Need "{VK_TOKEN_ENV_NAME}" variable with VK bot token'))
+    if (vk_bot_token := os.environ.get(VK_BOT_TOKEN_ENV_NAME)) is None:
+        raise (InitError(f'Need "{VK_BOT_TOKEN_ENV_NAME}" variable with VK bot token'))
+    if (vk_api_token := os.environ.get(VK_API_TOKEN_ENV_NAME)) is None:
+        raise (InitError(f'Need "{VK_API_TOKEN_ENV_NAME}" variable with VK API token'))
+    if (vk_group_id := os.environ.get(VK_GROUP_ID_ENV_NAME)) is None:
+        raise (InitError(f'Need "{VK_GROUP_ID_ENV_NAME}" variable with VK Gropu ID'))
+    
     # отключить лишний вывод aiosqlite и vkbottle
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
     logging.getLogger("vkbottle").setLevel(logging.WARNING)
@@ -68,8 +90,15 @@ async def main(verbose: bool = False):
     async with d_db, u_db:
         ms = MS_producer(db_handler=d_db, logger=logger)
         tg = TG_Sender(token=tg_token, db_handler=u_db, ms_producer=ms, logger=logger)
-        vk = VK_Sender(token=vk_token, db_handler=u_db, ms_producer=ms, logger=logger)
-        a_list = [tg.poll(), vk.poll(), check_mailing(u_db, (tg, vk))]
+        vk = VK_Sender(
+            bot_token=vk_bot_token,
+            api_token=vk_api_token,
+            group_id=vk_group_id,
+            db_handler=u_db,
+            ms_producer=ms,
+            logger=logger
+        )
+        a_list = [tg.poll(), vk.poll(), check_mailing(u_db, (tg, vk)), post_vk(u_db, vk)]
         # Запустить ботов
         try:
             await asyncio.gather(*a_list)
