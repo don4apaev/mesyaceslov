@@ -1,8 +1,10 @@
 # TODO
-# Информация о святом
+# Пост картинкой
 # Обновление + 4 дня вне года
 # Кэш в ms.py
+# Информация о святом
 # Поиск именин
+# inline-режим в тг-бота
 
 import asyncio, logging, os, sys
 from datetime import datetime, timezone

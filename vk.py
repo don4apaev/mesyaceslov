@@ -242,7 +242,7 @@ class VK_Sender(B.Bot_Sender):
                             tz_suf = "."
                         text = Wall_tz.format(tz_suf)
                         if wall["today"] is not None:
-                            time = (wall["today"] + tz) % 24
+                            time = (wall["today"] + wall["timezone"]) % 24
                             td_suf = B.Mailing_info_time_on.format(
                                 time,
                                 self._hours_ending(time)
@@ -251,7 +251,7 @@ class VK_Sender(B.Bot_Sender):
                             td_suf = B.Mailing_info_time_off
                         text += "\n" + Wall_post_today.format(td_suf)
                         if wall["tomorrow"] is not None:
-                            time = (wall["tomorrow"] + tz) % 24
+                            time = (wall["tomorrow"] + wall["timezone"]) % 24
                             tm_suf = B.Mailing_info_time_on.format(
                                 time,
                                 self._hours_ending(time)

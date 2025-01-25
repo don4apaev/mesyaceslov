@@ -128,7 +128,9 @@ class User_DB_handler(DB_handler):
 
 class Days_DB_handler(DB_handler):
     async def fill_daytable(self):
-        # Обновить данные в days
+        """
+        Обновить данные в days
+        """
         holydays = {}
         cur_year = date.today().year
         # Скачать и распаковать производственный календарь
@@ -146,16 +148,13 @@ class Days_DB_handler(DB_handler):
             return
         try:
             root = ET.fromstring(calendar)
-            if not (xmldays := root.find("days")):
-                raise XMLCalendarError
+            xmldays = root.find("days")
             for day in xmldays:
-                """
-                В XML теги <days>:
-                    d - дата в формате ММ.ДД.
-                    t - тип записи: см. workday_types
-                    h - ссылкой на идентификатор праздника из <holidays>.
-                    f - дата с которой был перенесен выходной день в формате ММ.ДД
-                """
+                # В XML теги <days>:
+                #     d - дата в формате ММ.ДД.
+                #     t - тип записи: см. workday_types
+                #     h - ссылкой на идентификатор праздника из <holidays>.
+                #     f - дата с которой был перенесен выходной день в формате ММ.ДД
                 xml_date = day.get("d").split(".")
                 holydays[int(xml_date[0]) * 100 + int(xml_date[1])] = int(day.get("t"))
         except Exception as e:
