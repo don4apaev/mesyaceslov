@@ -90,8 +90,8 @@ def get_fasting_detailed(day_date: date, cur_year: int) -> int:
     elif day_date == date(year=cur_year, month=9, day=27):
         # Воздвижение Креста Господня
         return 12
-    elif (day_date - f_easter).days > 7 and (day_date - f_easter).days < 50:
-        # Весенний мясоед
+    elif (f_easter - day_date).days in range(56, 63):
+        #  Седьмица о блудном сыне
         return -1
     elif day_date > date(year=cur_year, month=1, day=6) and day_date < date(
         year=cur_year, month=1, day=18
@@ -101,18 +101,15 @@ def get_fasting_detailed(day_date: date, cur_year: int) -> int:
     elif (f_easter - day_date).days in range(63, 70):
         #  Седьмица мытаря и фарисея
         return -3
-    elif (f_easter - day_date).days in range(63, 70):
-        #  Седьмица о блудном сыне
-        return -4
     elif (f_easter - day_date).days in range(49, 56):
         # Сырная седьмица
-        return -5
+        return -4
     elif (day_date - f_easter).days in range(1, 8):
         # Светлая седьмица
-        return -6
+        return -5
     elif (day_date - f_easter).days in range(50, 57):
         # Троицкая седьмица
-        return -7
+        return -6
     else:
         # Нет поста
         return 0
@@ -140,12 +137,14 @@ def get_fasting(day_date: date, cur_year: int) -> int:
     elif fasting == 12:
         # Воздвижение Креста Господня
         return 7
-    elif day_date.isoweekday() == 3:
+    elif fasting > -2 and day_date.isoweekday() == 3:
+        # воспоминание предательства Иудой Христа
         return 8
-    elif day_date.isoweekday() == 5:
+    elif fasting > -2 and day_date.isoweekday() == 5:
+        # память крестных страданий и смерти Спасителя
         return 9
     else:
-        return 0
+        return fasting
 
 def get_g_holyday(day_date: date, cur_year: int) -> int:
     """
@@ -225,6 +224,7 @@ def get_fasting_type(day_date: date, cur_year: int) -> int:
     """
     fasting = get_fasting_detailed(day_date, cur_year)
     holyday = get_g_holyday(day_date, cur_year)
+    f_easter = easter.easter(cur_year, easter.EASTER_ORTHODOX)
     if fasting == 1:
         if day_date.isoweekday() in (1, 2):
             return 6
@@ -310,17 +310,14 @@ def get_fasting_type(day_date: date, cur_year: int) -> int:
             return 3
     elif fasting in (10, 11, 12):
         return 3
-    elif fasting == -1:
-        if day_date.isoweekday() in (3, 5):
-            return 2
-        else:
-            return 0
-    elif fasting == -5:
+    elif fasting == -4:
         return 1
-    elif fasting in (-2, -3, -6, -7):
+    elif fasting < -2:
         return 0
     elif day_date.isoweekday() in (3, 5):
-        if holyday:
+        if holyday or ((day_date - f_easter).days > 7 and 
+                       (day_date - f_easter).days < 50):
+            # Великие праздники или весенний мясоед
             return 2
         else:
             return 4
@@ -334,30 +331,30 @@ def get_crowning(day_date: date, cur_year: int) -> int:
     1 - венчание возможно
     2 - венчание не желательно
     """
-    if day_date.isoweekday() in (2, 4, 6):
-        # Вторник, четверг и суббота
+    if day_date.isoweekday() == 6:
+        # На кануне малой пасхи
         return 0
-    fasting = get_fasting_detailed(day_date, cur_year)
-    eve_fasting = get_fasting_detailed(day_date + timedelta(days=1), cur_year)
+    fasting = get_fasting(day_date, cur_year)
+    eve_fasting = get_fasting(day_date + timedelta(days=1), cur_year)
     holyday = get_g_holyday(day_date, cur_year)
     eve_holyday = get_g_holyday(day_date + timedelta(days=1), cur_year)
-    if fasting > 0:
-        # Во время многодневных и однодневных постов
+    if fasting in range(1, 8):
+        # Во время многодневных и строгих однодневных постов
         return 0
-    elif eve_fasting in (11, 12):
-        # На кануне строгих однодневных постов
+    elif eve_fasting in range(6, 10):
+        # На кануне однодневных постов
+        return 0
+    elif fasting in (-2, -4, -5):
+        # Святки, Сырная, Светлая седьмицы
         return 0
     elif holyday == 1 or eve_holyday:
         # Пасха или канун великих праздников
         return 0
-    elif fasting in (-2, -5, -6):
-        # Святки, Сырная, Светлая седьмицы
-        return 0
+    elif fasting < 0:
+        # Мытаря и фарисея, О блудном сыне, Троицкая седьмица
+        return 2
     elif holyday:
         # Во время великих праздников
-        return 2
-    elif fasting in (-3, -4, -7):
-        # Мытаря и фарисея, О блудном сыне, Троицкая седьмица
         return 2
     else:
         return 1
