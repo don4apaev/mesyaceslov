@@ -30,7 +30,7 @@ async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
     cur_hour = datetime.now(timezone.utc).hour
     while True:
         await asyncio.sleep(1)
-        new_hour = datetime.now(timezone.utc).second
+        new_hour = datetime.now(timezone.utc).hour
         if new_hour != cur_hour:
             cur_hour = new_hour
             for bot in bot_handlers:
