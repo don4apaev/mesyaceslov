@@ -1,4 +1,7 @@
 # TODO
+# Поддержка форматирования в ВК
+# Пост в канал ТГ
+# Перевод таблиц на старый стиль
 # Пост картинкой
 # Обновление + 4 дня вне года
 # Кэш в ms.py
@@ -32,10 +35,10 @@ async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
         if new_hour != cur_hour:
             cur_hour = new_hour
             for bot in bot_handlers:
-                # Рассылка на сегодня для ТГ
+                # Рассылка на сегодня
                 users = await users_db.get_today_mailing_users(bot.db_type, cur_hour)
                 await asyncio.gather(bot.slovo_send_by_mailing(users, Days.TODAY))
-                # Рассылка на завтра для ТГ
+                # Рассылка на завтра
                 users = await users_db.get_tomorrow_mailing_users(bot.db_type, cur_hour)
                 await asyncio.gather(bot.slovo_send_by_mailing(users, Days.TOMMOROW))
 
