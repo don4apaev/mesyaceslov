@@ -42,36 +42,6 @@ BTN_ML_TIME_SET = "MLNG_time"
 BTN_ON = "on"
 BTN_OFF = "off"
 
-Admin_help = (
-    "Для проказа статистики используй "
-    +" или ".join([f"\"{cmd}\"" for cmd in CMD_STAT])
-    +f".\n\nДля рассылки используй \"{CMD_TO_ALL}\".\n\nДля публикации на стене "
-    f"используй \"{CMD_TO_WALL}\"."
-)
-Wall_help = (
-    "Для управлениями запланированными публикациями на стене начни команду с "
-    f"\"{CMD_WALL}\". Без дополнительных параметров в ответ получишь информацию "
-    f"о публикациях.\nДля редактирования после \"{CMD_WALL}\" укажи редактируемое "
-    f"значение:\n- \"{CMD_WALL_TIMEZONE}\" для часового пояса;\n- "
-    f"\"{CMD_WALL_TODAY}\" для времении публикации святых на сегодня;\n- "
-    f"\"{CMD_WALL_TOMORROW}\" для времении публикации примет на завтра;\nпосле чего"
-    " укажи значение:\n- для часового пояса в пределах от -15 до 9;\n- для времени "
-    "публикации от 0 до 24 или другое число или \"-\" для отмены публикации."
-)
-Wall_tz = "Часовой пояс для публикаций - МСК{}"
-Wall_post_today = "Публикация святых на сегодня {}"
-Wall_post_tomorrow = "Публикация примет на завтра {}"
-Wall_tz_error = (
-    "Меню управления публикациями, часовой пояс.\nОшибка в значении: \"{}\" - "
-    "должно быть между -15 и 9."
-)
-Wall_parse_error = (
-    "Меню управления публикациями.\nНе распознанная часть команды: \"{}\"."
-)
-Wall_error = "Ошибка публикации: {}."
-Wall_success = "Успешно опубликовано."
-
-
 class VK_Sender(B.Bot_Sender):
     def __init__(self, bot_token, api_token, group_id, **kwargs):
         super().__init__(**kwargs)
@@ -145,7 +115,15 @@ class VK_Sender(B.Bot_Sender):
                 message.peer_id, self._db_type
             ):
                 if user["admin"] == True:
-                    await message.answer(Admin_help + '\n\n' + Wall_help)
+                    await message.answer(
+                        B.Admin_help.format(
+                            " или ".join([f"\"{cmd}\"" for cmd in CMD_STAT]),
+                            CMD_TO_ALL, CMD_TO_WALL
+                        ) + '\n\n' + B.Post_help.format(
+                            CMD_WALL, CMD_WALL_TIMEZONE, 
+                            CMD_WALL_TODAY, CMD_WALL_TOMORROW
+                        )
+                    )
 
         @self._bot.on.private_message(text=CMD_STAT)
         @B.Bot_Sender.except_log
@@ -240,7 +218,7 @@ class VK_Sender(B.Bot_Sender):
                             tz_suf = f"+{tz}."
                         else:
                             tz_suf = "."
-                        text = Wall_tz.format(tz_suf)
+                        text = B.Post_tz.format(tz_suf)
                         if wall["today"] is not None:
                             time = (wall["today"] + wall["timezone"]) % 24
                             td_suf = B.Mailing_info_time_on.format(
@@ -249,7 +227,7 @@ class VK_Sender(B.Bot_Sender):
                             )
                         else:
                             td_suf = B.Mailing_info_time_off
-                        text += "\n" + Wall_post_today.format(td_suf)
+                        text += "\n" + B.Post_today.format(td_suf)
                         if wall["tomorrow"] is not None:
                             time = (wall["tomorrow"] + wall["timezone"]) % 24
                             tm_suf = B.Mailing_info_time_on.format(
@@ -258,13 +236,13 @@ class VK_Sender(B.Bot_Sender):
                             )
                         else:
                             tm_suf = B.Mailing_info_time_off
-                        text += "\n" + Wall_post_tomorrow.format(tm_suf)
+                        text += "\n" + B.Post_tomorrow.format(tm_suf)
                     elif subcmd.startswith(CMD_WALL_TIMEZONE):
                         # Редактирование часового пояса
                         val = subcmd.removeprefix(CMD_WALL_TIMEZONE)
                         tz = self._parse_tz(val)
                         if tz is None:
-                            text = Wall_tz_error.format(val)
+                            text = B.Post_tz_error.format(val)
                         else:
                             timezone = tz + 3
                             await self._db_handler.set_user_timezone(
@@ -278,7 +256,7 @@ class VK_Sender(B.Bot_Sender):
                                 tz_suf = f"+{tz}."
                             else:
                                 tz_suf = "."
-                            text = Wall_tz.format(tz_suf)
+                            text = B.Post_tz.format(tz_suf)
                     elif subcmd.startswith(CMD_WALL_TODAY):
                         # Редактирование публикации святых на сегодня
                         val = subcmd.removeprefix(CMD_WALL_TODAY)
@@ -299,7 +277,7 @@ class VK_Sender(B.Bot_Sender):
                             )
                         else:
                             td_suf = B.Mailing_info_time_off
-                        text = Wall_post_today.format(td_suf)
+                        text = B.Post_today.format(td_suf)
                     elif subcmd.startswith(CMD_WALL_TOMORROW):
                         # Редактирование публикации святых на сегодня
                         val = subcmd.removeprefix(CMD_WALL_TOMORROW)
@@ -320,10 +298,16 @@ class VK_Sender(B.Bot_Sender):
                             )
                         else:
                             tm_suf = B.Mailing_info_time_off
-                        text = Wall_post_tomorrow.format(tm_suf)
+                        text = B.Post_tomorrow.format(tm_suf)
                     else:
                         # Ошибка распознавания
-                        text = Wall_parse_error.format(subcmd) + '\n\n' + Wall_help
+                        text = (
+                            B.Post_parse_error.format(subcmd) + '\n\n' + 
+                            B.Post_help.format(
+                                CMD_WALL, CMD_WALL_TIMEZONE, 
+                                CMD_WALL_TODAY, CMD_WALL_TOMORROW
+                            )
+                        )
             await message.reply(text)
 
         @self._bot.on.private_message(func=lambda m: m.text.startswith(CMD_TO_WALL))
@@ -346,10 +330,10 @@ class VK_Sender(B.Bot_Sender):
                             owner_id=self._group_id
                         )
                     except Exception as e:
-                        text = Wall_error.format(e)
+                        text = B.Post_error.format(e)
                         self._logger.info(f'VK wall posting error: {e}')
                     else:
-                        text = Wall_success
+                        text = B.Post_success
                         self._logger.debug(text)
             await message.reply(text)
 
@@ -411,7 +395,8 @@ class VK_Sender(B.Bot_Sender):
                 text_func = self._ms_producer.make_sign
             else:
                 text_func = self._ms_producer.make_holy
-            text = (await text_func(user, day)).replace("_", "").replace("*", "")
+            text = (await text_func(user, day))
+            text = self._strip_text(text)
             # Отредактировать сообщение
             await event.edit_message(text)
             self._logger.debug(f"Send Slovo for request of VK user {event.user_id}")
@@ -813,7 +798,8 @@ class VK_Sender(B.Bot_Sender):
             if limit_count == 20:
                 await sleep(1)
                 limit_count = 0
-            text = (await text_func(user, day_type)).replace("_", "").replace("*", "")
+            text = (await text_func(user, day_type))
+            text = self._strip_text(text)
             try:
                 await self._bot.api.messages.send(
                     peer_ids=user["id"], random_id=0, message=text
@@ -828,7 +814,7 @@ class VK_Sender(B.Bot_Sender):
                 limit_count += 1
 
     @B.Bot_Sender.except_log
-    async def do_wall_post(self, day_type):
+    async def do_post(self, day_type):
         """
         Опубликовать запись на стене
         """
@@ -840,7 +826,8 @@ class VK_Sender(B.Bot_Sender):
             day = "today"
         # Получаем Слово на день и публикуем
         user = await self._db_handler.get_user_info(WALL_DB_ID, self._db_type)
-        text = (await text_func(user, day_type)).replace("_", "").replace("*", "")
+        text = (await text_func(user, day_type))
+        text = self._strip_text(text)
         try:
             await self._api.wall.post(
                             message=text,
@@ -904,3 +891,6 @@ class VK_Sender(B.Bot_Sender):
         else:
             text = B.Error
         return text, keyboard
+
+    def _strip_text(self, text):
+        return text.replace("_", "").replace("*", "")

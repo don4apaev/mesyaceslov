@@ -5,10 +5,17 @@ from asyncio import sleep
 from utils import Days, BotType
 import bot as B
 
+CHANNEL_DB_ID = 0
+CHANNEL_NAME = "@nmesyaceslov"
 CMD_START = "start"
 CMD_HELP = "help"
 CMD_STAT = "stat"
 CMD_TO_ALL = "toall: "
+CMD_TO_CHANNEL = "tochannel: "
+CMD_CHANNEL = "channel"
+CMD_CHANNEL_TIMEZONE = " zone "
+CMD_CHANNEL_TODAY = " today "
+CMD_CHANNEL_TOMORROW = " tomorrow "
 CMD_TODAY = "today"
 CMD_TOMORROW = "tomorrow"
 CMD_YESTERDAY = "yesterday"
@@ -94,7 +101,14 @@ class TG_Sender(B.Bot_Sender):
                 message.chat.id, self._db_type
             ):
                 if user["admin"] == True:
-                    await self._bot.send_message(message.chat.id, Admin_help)
+                    await self._bot.send_message(message.chat.id,
+                         B.Admin_help.format(
+                            CMD_STAT, CMD_TO_ALL, CMD_TO_CHANNEL
+                        ) + '\n\n' + B.Post_help.format(
+                            CMD_CHANNEL, CMD_CHANNEL_TIMEZONE, 
+                            CMD_CHANNEL_TODAY, CMD_CHANNEL_TOMORROW
+                        )
+                    )
 
         @self._bot.message_handler(commands=[CMD_STAT], chat_types=["private"])
         @B.Bot_Sender.except_log
@@ -126,7 +140,7 @@ class TG_Sender(B.Bot_Sender):
         @self._bot.message_handler(
             func=lambda m: m.text.startswith(CMD_TO_ALL), chat_types=["private"]
         )
-        # @B.Bot_Sender.except_log
+        @B.Bot_Sender.except_log
         async def send_from_admin_to_all(message):
             """
             Статистика по боту
@@ -156,16 +170,161 @@ class TG_Sender(B.Bot_Sender):
                         except Exception as e:
                             bad.append(str(u["id"]))
                             self._logger.info(
-                                f"Broadcast error for VK user {u['id']}: {e}"
+                                f"Broadcast error for TG user {u['id']}: {e}"
                             )
                         else:
                             ok += 1
-                            self._logger.debug(f"Send broadcast to VK user {u['id']}")
+                            self._logger.debug(f"Send broadcast to TG user {u['id']}")
                         finally:
                             limit_count += 1
                     text = B.Broadcast_ok.format(ok)
                     if len(bad):
                         text += B.Broadcast_bad.format(len(bad), ', '.join(bad))
+            await self._bot.reply_to(message, text)
+
+        @self._bot.message_handler(
+            func=lambda m: m.text.startswith(CMD_CHANNEL), chat_types=["private"]
+        )
+        @B.Bot_Sender.except_log
+        async def wall_edit(message):
+            """
+            Управление публикациями на стене
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(
+                message.chat.id, self._db_type
+            ):
+                if user["admin"] == True:
+                    subcmd = message.text.removeprefix(CMD_CHANNEL)
+                    wall = await self._db_handler.get_user_info(
+                            CHANNEL_DB_ID,
+                            self._db_type
+                        )
+                    if subcmd == '':
+                        # Только запрос - вернуть настройки
+                        tz = wall["timezone"]-3
+                        if tz < 0:
+                            tz_suf = f"{tz}."
+                        elif tz > 0:
+                            tz_suf = f"+{tz}."
+                        else:
+                            tz_suf = "."
+                        text = B.Post_tz.format(tz_suf)
+                        if wall["today"] is not None:
+                            time = (wall["today"] + wall["timezone"]) % 24
+                            td_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            td_suf = B.Mailing_info_time_off
+                        text += "\n" + B.Post_today.format(td_suf)
+                        if wall["tomorrow"] is not None:
+                            time = (wall["tomorrow"] + wall["timezone"]) % 24
+                            tm_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            tm_suf = B.Mailing_info_time_off
+                        text += "\n" + B.Post_tomorrow.format(tm_suf)
+                    elif subcmd.startswith(CMD_CHANNEL_TIMEZONE):
+                        # Редактирование часового пояса
+                        val = subcmd.removeprefix(CMD_CHANNEL_TIMEZONE)
+                        tz = self._parse_tz(val)
+                        if tz is None:
+                            text = B.Post_tz_error.format(val)
+                        else:
+                            timezone = tz + 3
+                            await self._db_handler.set_user_timezone(
+                                CHANNEL_DB_ID,
+                                self._db_type,
+                                timezone
+                            )
+                            if tz < 0:
+                                tz_suf = f"{tz}."
+                            if tz > 0:
+                                tz_suf = f"+{tz}."
+                            else:
+                                tz_suf = "."
+                            text = B.Post_tz.format(tz_suf)
+                    elif subcmd.startswith(CMD_CHANNEL_TODAY):
+                        # Редактирование публикации святых на сегодня
+                        val = subcmd.removeprefix(CMD_CHANNEL_TODAY)
+                        time = self._parse_mailing_time(val)
+                        if time is None:
+                            db_time = time
+                        else:
+                            db_time = (time - wall["timezone"]) % 24
+                        await self._db_handler.set_user_today_time(
+                            CHANNEL_DB_ID,
+                            self._db_type,
+                            db_time
+                        )
+                        if time is not None:
+                            td_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            td_suf = B.Mailing_info_time_off
+                        text = B.Post_today.format(td_suf)
+                    elif subcmd.startswith(CMD_CHANNEL_TOMORROW):
+                        # Редактирование публикации святых на сегодня
+                        val = subcmd.removeprefix(CMD_CHANNEL_TOMORROW)
+                        time = self._parse_mailing_time(val)
+                        if time is None:
+                            db_time = time
+                        else:
+                            db_time = (time - wall["timezone"]) % 24
+                        await self._db_handler.set_user_tomorrow_time(
+                            CHANNEL_DB_ID,
+                            self._db_type,
+                            db_time
+                        )
+                        if time is not None:
+                            tm_suf = B.Mailing_info_time_on.format(
+                                time,
+                                self._hours_ending(time)
+                            )
+                        else:
+                            tm_suf = B.Mailing_info_time_off
+                        text = B.Post_tomorrow.format(tm_suf)
+                    else:
+                        # Ошибка распознавания
+                        text = (
+                            B.Post_parse_error.format(subcmd) + '\n\n' + 
+                            B.Post_help.format(
+                                CMD_CHANNEL, CMD_CHANNEL_TIMEZONE, 
+                                CMD_CHANNEL_TODAY, CMD_CHANNEL_TOMORROW
+                            )
+                        )
+            await self._bot.reply_to(message, text)
+
+        @self._bot.message_handler(
+            func=lambda m: m.text.startswith(CMD_TO_CHANNEL), chat_types=["private"]
+        )
+        @B.Bot_Sender.except_log
+        async def post_from_admin_to_channel(message):
+            """
+            Управление публикациями на стене
+            """
+            text = B.Unknown
+            # Только если пользователь существует и администратор
+            if user := await self._db_handler.get_user_info(
+                message.chat.id, self._db_type
+            ):
+                if user["admin"] == True:
+                    text_to_channel = message.text.removeprefix(CMD_TO_CHANNEL)
+                    try:
+                        await self._bot.send_message(CHANNEL_NAME, text_to_channel)
+                    except Exception as e:
+                        text = B.Post_error.format(e)
+                        self._logger.info(f'TG channel posting error: {e}')
+                    else:
+                        text = B.Post_success
+                        self._logger.debug(text)
             await self._bot.reply_to(message, text)
 
         @self._bot.message_handler(commands=[CMD_TODAY, CMD_TOMORROW, CMD_YESTERDAY])
@@ -218,7 +377,7 @@ class TG_Sender(B.Bot_Sender):
             await self._bot.edit_message_text(
                 text, message.chat.id, message_id=message.message_id, parse_mode=parse
             )
-            self._logger.debug(f"Send Slovo for request of VK user {message.chat.id}")
+            self._logger.debug(f"Send Slovo for request of TG user {message.chat.id}")
 
         @self._bot.message_handler(commands=[CMD_TIMEZONE])
         @B.Bot_Sender.except_log
@@ -571,6 +730,28 @@ class TG_Sender(B.Bot_Sender):
                 )
             finally:
                 limit_count += 1
+
+    @B.Bot_Sender.except_log
+    async def do_post(self, day_type):
+        """
+        Опубликовать запись в канале
+        """
+        if day_type == Days.TOMMOROW:
+            text_func = self._ms_producer.make_sign
+            day = "tomorrow"
+        else:  # Days.TODAY
+            text_func = self._ms_producer.make_holy
+            day = "today"
+        parse = "Markdown"
+        # Получаем Слово на день и публикуем
+        user = await self._db_handler.get_user_info(CHANNEL_DB_ID, self._db_type)
+        text = (await text_func(user, day_type))
+        try:
+            await self._bot.send_message(CHANNEL_NAME, text, parse_mode=parse)
+        except Exception as e:
+            self._logger.info(f'TG posting error: {e}')
+        else:
+            self._logger.debug(f'TG {day} post OK')
 
     async def _make_mailing_choice(self, user_id):
         """

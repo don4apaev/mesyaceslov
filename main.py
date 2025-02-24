@@ -1,12 +1,11 @@
 # TODO
-# Поддержка форматирования в ВК
-# Пост в канал ТГ
 # Перевод таблиц на старый стиль
-# Пост картинкой
 # Обновление + 4 дня вне года
 # Кэш в ms.py
 # Информация о святом
 # Поиск именин
+# Пост картинкой
+# Поддержка форматирования в ВК
 # inline-режим в тг-бота
 
 import asyncio, logging, os, sys
@@ -31,7 +30,7 @@ async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
     cur_hour = datetime.now(timezone.utc).hour
     while True:
         await asyncio.sleep(1)
-        new_hour = datetime.now(timezone.utc).hour
+        new_hour = datetime.now(timezone.utc).second
         if new_hour != cur_hour:
             cur_hour = new_hour
             for bot in bot_handlers:
@@ -41,22 +40,12 @@ async def check_mailing(users_db: User_DB_handler, bot_handlers: tuple):
                 # Рассылка на завтра
                 users = await users_db.get_tomorrow_mailing_users(bot.db_type, cur_hour)
                 await asyncio.gather(bot.slovo_send_by_mailing(users, Days.TOMMOROW))
-
-async def post_vk(users_db: User_DB_handler, bot: VK_Sender):
-    """
-    Узнать ближайшую публикацию и заснуть до неё
-    """
-    cur_hour = datetime.now(timezone.utc).hour
-    while True:
-        await asyncio.sleep(1)
-        new_hour = datetime.now(timezone.utc).hour
-        if new_hour != cur_hour:
-            cur_hour = new_hour
-            user = await users_db.get_user_info(WALL_DB_ID, bot.db_type)
-            if cur_hour == user["today"]:
-                await asyncio.gather(bot.do_wall_post(Days.TODAY))
-            if cur_hour == user["tomorrow"]:
-                await asyncio.gather(bot.do_wall_post(Days.TOMMOROW))
+                # Публикация на стену или в канал
+                user = await users_db.get_user_info(WALL_DB_ID, bot.db_type)
+                if cur_hour == user["today"]:
+                    await asyncio.gather(bot.do_post(Days.TODAY))
+                if cur_hour == user["tomorrow"]:
+                    await asyncio.gather(bot.do_post(Days.TOMMOROW))
 
 async def main(verbose: bool = False):
     # Проверить входщие данные
@@ -102,7 +91,7 @@ async def main(verbose: bool = False):
             ms_producer=ms,
             logger=logger
         )
-        a_list = [tg.poll(), vk.poll(), check_mailing(u_db, (tg, vk)), post_vk(u_db, vk)]
+        a_list = [tg.poll(), vk.poll(), check_mailing(u_db, (tg, vk))]
         # Запустить ботов
         try:
             await asyncio.gather(*a_list)
