@@ -24,10 +24,6 @@ class ZeroInDate(MesyaceslovError):
     pass
 
 
-class XMLCalendarError(MesyaceslovError):
-    pass
-
-
 class DateDBError(MesyaceslovError):
     pass
 
@@ -114,6 +110,7 @@ def get_fasting_detailed(day_date: date, cur_year: int) -> int:
         # Нет поста
         return 0
 
+
 def get_fasting(day_date: date, cur_year: int) -> int:
     fasting = get_fasting_detailed(day_date, cur_year)
     if fasting in (1, 2, 3, 4):
@@ -145,6 +142,7 @@ def get_fasting(day_date: date, cur_year: int) -> int:
         return 9
     else:
         return fasting
+
 
 def get_g_holyday(day_date: date, cur_year: int) -> int:
     """

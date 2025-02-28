@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from logging import Logger
 
 from utils import get_fasting, get_fasting_type, get_crowning, get_g_holyday
-from utils import XMLCalendarError
+from utils import DateDBError
 
 
 class DB_handler:
@@ -127,26 +127,42 @@ class User_DB_handler(DB_handler):
 
 
 class Days_DB_handler(DB_handler):
+    async def __aenter__(self):
+        await DB_handler.__aenter__(self)
+        sql_req = "SELECT current FROM year"
+        async with self.db.execute(sql_req) as cursor:
+            self._table_year = (await cursor.fetchone())[0]
+
     async def fill_daytable(self):
         """
         Обновить данные в days
         """
         holydays = {}
-        cur_year = date.today().year
-        # Скачать и распаковать производственный календарь
+        cur_year = self._table_year + 1
         try:
+            # Обновить год в таблице
+            sql_req = (
+                "UPDATE year SET current = ? WHERE current=?"
+            )
+            await self.db.execute(sql_req, (cur_year, self._table_year))
+            # Перенести последние 4 дня текущего года в пердыдущий
+            sql_req = (
+                "SELECT work, fasting, f_type, crowning, holy, day FROM days "
+                "WHERE month=12 AND day > 27"
+            )
+            async with self.db.execute(sql_req) as cursor:
+                old_days = await cursor.fetchall()
+            sql_req = (
+                "UPDATE days SET (work, fasting, f_type, crowning, holy) = "
+                "(?, ?, ?, ?, ?) WHERE month=-1 AND day=?"
+            )
+            cursor = await self.db.executemany(sql_req, old_days)
+            # Скачать и распаковать производственный календарь
             url = f"https://xmlcalendar.ru/data/ru/{cur_year}/calendar.xml"
             self._logger.debug(f"Download calendar from {url}")
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     calendar = (await response.read()).decode()
-        except Exception as e:
-            self._logger.error(
-                f"Some exception while get xmlcalendar\n"
-                f'\t"{e}" on {e.__traceback__.tb_lineno}'
-            )
-            return
-        try:
             root = ET.fromstring(calendar)
             xmldays = root.find("days")
             for day in xmldays:
@@ -157,36 +173,38 @@ class Days_DB_handler(DB_handler):
                 #     f - дата с которой был перенесен выходной день в формате ММ.ДД
                 xml_date = day.get("d").split(".")
                 holydays[int(xml_date[0]) * 100 + int(xml_date[1])] = int(day.get("t"))
-        except Exception as e:
-            self._logger.error(
-                f"Some exception while parsing xmlcalendar\n"
-                f'\t"{e}" on {e.__traceback__.tb_lineno}'
+                self._logger.debug(f"Get days: {holydays}")
+            # Заполнить даты в календаре на год
+            all_days = []
+            iter_date = date(year=cur_year, month=1, day=1)
+            while iter_date.year == cur_year:
+                if not (day_type := holydays.get(iter_date.month * 100 + iter_date.day)):
+                    day_type = 3 if iter_date.isoweekday() < 6 else 1
+                fasting = get_fasting(iter_date, cur_year)
+                f_type = get_fasting_type(iter_date, cur_year)
+                crowning = get_crowning(iter_date, cur_year)
+                g_holyday = get_g_holyday(iter_date, cur_year)
+                all_days.append((
+                    day_type, fasting, f_type, crowning,
+                    g_holyday, iter_date.month, iter_date.day
+                ))
+                iter_date += timedelta(days=1)
+            sql_req = (
+                "UPDATE days SET (work, fasting, f_type, crowning, holy) = "
+                "(?, ?, ?, ?, ?) WHERE month=? AND day=?"
             )
-            return
-        else:
-            self._logger.debug(f"Get days: {holydays}")
-        # Заполнить даты в календаре на год
-        all_days = []
-        iter_date = date(year=cur_year, month=1, day=1)
-        while iter_date.year == cur_year:
-            if not (day_type := holydays.get(iter_date.month * 100 + iter_date.day)):
-                day_type = 3 if iter_date.isoweekday() < 6 else 1
-            fasting = get_fasting(iter_date, cur_year)
-            f_type = get_fasting_type(iter_date, cur_year)
-            crowning = get_crowning(iter_date, cur_year)
-            g_holyday = get_g_holyday(iter_date, cur_year)
-            all_days.append((
-                day_type, fasting, f_type, crowning, g_holyday, iter_date.month, iter_date.day
-            ))
-            iter_date += timedelta(days=1)
-
-        sql_req = (
-            "UPDATE days SET (work, fasting, f_type, crowning, holy) = "
-            "(?, ?, ?, ?, ?) WHERE month=? AND day=?"
-        )
-        try:
             cursor = await self.db.executemany(sql_req, all_days)
-            await self.db.commit()
+            # Обновить данные в saints
+            # Обновить даты переходящих праздников
+            # 1-18 - великие праздники
+            # 104 - первое вск после 31 окт
+            # 230 - ближайшее вск к 23 ноя
+            # 485 - первое вскр после Р или пн, если Р в вскр
+            # 561 - первая суб по Богоявлению
+            # 653 - вскр: 7; до 7, если пн-сб после 7, если чт-сб
+            # 695 - 1 вскр после 11 фев
+            # 761 - чтв Сырной седмицы
+            # 769-796 - +/- 1 день в зависимости от високосности
         except Exception as e:
             self._logger.error(
                 f"Some exception while updatiing days\n"
@@ -195,18 +213,7 @@ class Days_DB_handler(DB_handler):
             return
         else:
             self._logger.info(f"days updated")
-        # Обновить данные в saints
-        # Обновить даты переходящих праздников
-        # 1-18 - великие праздники
-        # 104 - первое вск после 31 окт
-        # 230 - ближайшее вск к 23 ноя
-        # 485 - первое вскр после Р или пн, если Р в вскр
-        # 561 - первая суб по Богоявлению
-        # 653 - вскр: 7; до 7, если пн-сб после 7, если чт-сб
-        # 695 - 1 вскр после 11 фев
-        # 761 - чтв Сырной седмицы
-        # 769-796 - +/- 1 день в зависимости от високосности
-        await self.db.commit()
+            await self.db.commit()
 
     async def get_day_values(self, day_date: date) -> tuple:
         try:
@@ -221,7 +228,7 @@ class Days_DB_handler(DB_handler):
                 "WHERE D.month=? AND D.day=?"
             )
             async with self.db.execute(
-                sql_req, (day_date.month, day_date.day)
+                sql_req, (self._month_conversion(day_date), day_date.day)
             ) as cursor:
                 day = await cursor.fetchone()
                 return tuple(day)
@@ -236,7 +243,7 @@ class Days_DB_handler(DB_handler):
         try:
             sql_req = "SELECT id, name, sign FROM saints WHERE month=? AND day=?"
             async with self.db.execute(
-                sql_req, (day_date.month, day_date.day)
+                sql_req, (self._month_conversion(day_date), day_date.day)
             ) as cursor:
                 saints = await cursor.fetchall()
                 return tuple(tuple(saint) for saint in saints)
@@ -259,3 +266,12 @@ class Days_DB_handler(DB_handler):
                 f'\t"{e}" on {e.__traceback__.tb_lineno}'
             )
             return tuple()
+
+    def _month_conversion(self, day_date: date):
+        if day_date.year != self._table_year:
+            if day_date.month == 12 and day_date.day in range(28, 32):
+                return -1
+            else:
+                raise DateDBError("Date from past year")
+        else:
+            return day_date.month

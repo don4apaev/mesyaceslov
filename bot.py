@@ -213,17 +213,17 @@ class Bot_Sender:
             try:
                 await func(self, *args, **kwargs)
             except ApiTelegramException as e:
-                self._logger.warning(
+                Bot_Sender._logger.warning(
                     f'Exception in Telegram API in <{func.__name__}>\n\t"{e}"'
                 )
             except VKAPIError as e:
-                self._logger.warning(
+                Bot_Sender._logger.warning(
                     f'Exception in VK API in <{func.__name__}>\n\t"{e}"'
                 )
             except aiosqliteError as e:
-                self._logger.error(f'Exception in DB in <{func.__name__}>\n\t"{e}"')
+                Bot_Sender._logger.error(f'Exception in DB in <{func.__name__}>\n\t"{e}"')
             except Exception as e:
-                self._logger.error(
+                Bot_Sender._logger.error(
                     f'Some undefined exception in <{func.__name__}>\n\t"{e}"'
                 )
 
