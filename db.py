@@ -127,6 +127,12 @@ class User_DB_handler(DB_handler):
 
 
 class Days_DB_handler(DB_handler):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._limit = 5
+        self._days_cache = {}
+        self._saints_cache = {}
+        
     async def __aenter__(self):
         await DB_handler.__aenter__(self)
         sql_req = "SELECT current FROM year"
@@ -218,6 +224,8 @@ class Days_DB_handler(DB_handler):
             await self.db.commit()
 
     async def get_day_values(self, day_date: date) -> tuple:
+        if day_date in self._days_cache:
+            return self._days_cache[day_date]
         try:
             sql_req = (
                 "SELECT D.name, W.name, F.name, T.name, C.name, S.name "
@@ -232,8 +240,9 @@ class Days_DB_handler(DB_handler):
             async with self.db.execute(
                 sql_req, (self._month_conversion(day_date), day_date.day)
             ) as cursor:
-                day = await cursor.fetchone()
-                return tuple(day)
+                day = tuple(await cursor.fetchone())
+                self._cache(day_date, day=day)
+                return day
         except Exception as e:
             self._logger.error(
                 f"Some exception while get {day_date} info from days\n"
@@ -242,13 +251,16 @@ class Days_DB_handler(DB_handler):
             return None
 
     async def get_saints(self, day_date: date) -> tuple:
+        if day_date in self._saints_cache:
+            return self._saints_cache[day_date]
         try:
             sql_req = "SELECT id, name, sign FROM saints WHERE month=? AND day=?"
             async with self.db.execute(
                 sql_req, (self._month_conversion(day_date), day_date.day)
             ) as cursor:
-                saints = await cursor.fetchall()
-                return tuple(tuple(saint) for saint in saints)
+                saints = tuple(tuple(saint) for saint in (await cursor.fetchall()))
+                self._cache(day_date, saints=saints)
+                return saints
         except Exception as e:
             self._logger.error(
                 f"Some exception while get {day_date} info from saints\n"
@@ -277,3 +289,17 @@ class Days_DB_handler(DB_handler):
                 raise DateDBError("Date from past year")
         else:
             return day_date.month
+        
+    def _cache(self, day_date: date, day: tuple = [], saints: tuple = []):
+        if day:
+            cache = self._days_cache
+        elif tuple:
+            cache = self._saints_cache
+        else:
+            return
+        if len(cache) == self._limit:
+            keys = sorted(cache.keys())
+            if day_date > keys[0]:
+                cache.pop(keys[0])
+        if len(cache) < self._limit:
+            cache[day_date] = day
