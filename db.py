@@ -297,8 +297,10 @@ class Days_DB_handler(DB_handler):
     def _cache(self, day_date: date, day: tuple = [], saints: tuple = []):
         if day:
             cache = self._days_cache
-        elif tuple:
+            data = day
+        elif saints:
             cache = self._saints_cache
+            data = saints
         else:
             return
         if len(cache) == self._limit:
@@ -306,4 +308,4 @@ class Days_DB_handler(DB_handler):
             if day_date > keys[0]:
                 cache.pop(keys[0])
         if len(cache) < self._limit:
-            cache[day_date] = day
+            cache[day_date] = data
