@@ -216,7 +216,7 @@ class Days_DB_handler(DB_handler):
             # 822,823,825-828 - ???
             # 845 - второе вскр Великого поста
             # 849 - второе вскр Великого поста
-            #
+            # 933 - четвёртое вскр Великого поста
         except Exception as e:
             self._logger.error(
                 f"Some exception while updatiing days\n"
@@ -303,9 +303,8 @@ class Days_DB_handler(DB_handler):
             data = saints
         else:
             return
-        if len(cache) == self._limit:
+        while len(cache) >= self._limit:
             keys = sorted(cache.keys())
             if day_date > keys[0]:
                 cache.pop(keys[0])
-        if len(cache) < self._limit:
-            cache[day_date] = data
+        cache[day_date] = data
