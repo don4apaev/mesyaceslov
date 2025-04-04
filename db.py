@@ -218,6 +218,7 @@ class Days_DB_handler(DB_handler):
             # 849 - второе вскр Великого поста
             # 933 - четвёртое вскр Великого поста
             # 966 - пятое вскр Великого поста
+            # 996 - шетая субб Великого поста
         except Exception as e:
             self._logger.error(
                 f"Some exception while updatiing days\n"
