@@ -224,6 +224,7 @@ class Days_DB_handler(DB_handler):
             # 1062 - вторник Светлой седмицы
             # 1063 - вторник Светлой седмицы
             # 1068 - среда Светлой седмицы
+            # 1077 - пятница Светлой седмицы
         except Exception as e:
             self._logger.error(
                 f"Some exception while updatiing days\n"
