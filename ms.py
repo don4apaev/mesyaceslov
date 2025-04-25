@@ -82,12 +82,18 @@ class MS_producer:
         # Обрабатываем всё, что меньше 1000
         mult = 1
         for digit in num_tuple[:3]:
-            cyr_number = Cyril_numbers[digit * mult] + cyr_number
+            if digit * mult == 10:
+                cyr_number = cyr_number + Cyril_numbers[digit * mult]
+            else:
+                cyr_number = Cyril_numbers[digit * mult] + cyr_number
             mult *= 10
         # Обрабатываем всё, что осталось
         mult = 1
         for digit in num_tuple[3:]:
-            cyr_number = "҂" + Cyril_numbers[digit * mult] + cyr_number
+            if digit * mult == 10:
+                cyr_number = cyr_number + "҂" + Cyril_numbers[digit * mult]
+            else:
+                cyr_number = "҂" + Cyril_numbers[digit * mult] + cyr_number
             mult *= 10
         # Добавляем титло
         if len(cyr_number) > 1:
