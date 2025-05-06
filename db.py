@@ -227,10 +227,10 @@ class Days_DB_handler(DB_handler):
             # 1077 - пятница Светлой седмицы
             # 1129 - 2 вскр после Пасхи
             # 1136 - 2 вскр после Пасхи
-            # 
-            # 
-            # 
-            # 
+            # 1213 - 4 вскр после Пасхи
+            # 1214 - 4 вскр после Пасхи
+            # 1235 - 25 день по Пасхе
+            # 1236 - 25 день по Пасхе
         except Exception as e:
             self._logger.error(
                 f"Some exception while updatiing days\n"
